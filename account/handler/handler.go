@@ -2,21 +2,22 @@ package handler
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Handler struct{}
 
-type config struct {
+type Config struct {
 	R *gin.Engine
 }
 
-func NewHandler(c *config) {
+func NewHandler(c *Config) {
 	h := &Handler{}
 
 	// Create a account
-	g := c.R.Group("ACCOUNT_API_URL")
+	g := c.R.Group(os.Getenv("ACCOUNT_API_URL"))
 
 	g.GET("/me", h.Me)
 	g.POST("/signup", h.Signup)

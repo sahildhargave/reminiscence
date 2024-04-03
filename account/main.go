@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"memories/handler"
 	"net/http"
 	"os"
 
@@ -17,6 +18,11 @@ func main() {
 	log.Println("Starting account service...")
 
 	router := gin.Default()
+
+	handler.NewHandler(&handler.Config{
+		R: router,
+	})
+
 	router.GET("/api/account", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"hello": "Fuckers",
