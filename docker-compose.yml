@@ -1,0 +1,36 @@
+version: '3.8'
+services:
+  reverse-proxy:
+    #official v2 traefik docker image
+    image: traefik:v2.2
+    #Enables the web UI and tells traefik to listen to docker
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      # The HTTP port 
+      - "80:80"
+      # The Web UI (enabled by --api.insecure=true)
+      - "8080:8080"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+  account:
+    build:
+      context: ./account
+      target: builder
+    image: account
+    expose:
+      - "8080"
+    labels:
+     - "traefik.enable=true"
+     - "traefik.http.routers.account.rule=Host(`malcorp.test`) && PathPrefix(`/api/account`)"
+    environment:
+      - environment=dev
+    volumes:
+      - ./account:/go/src/app
+
+    # have to use $$ (double-dollar) so docker does't try to substitute a variable
+    command: reflex -r "\.go$$" -s -- sh -c "go run ./"
