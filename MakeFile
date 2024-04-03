@@ -1,0 +1,34 @@
+# Makefile
+
+.PHONY: all
+
+# Define targets
+all: get_hello get_signin post_signup post_image post_details put_details delete_image
+
+# GET request to /api/account/me
+get_hello:
+	curl.exe -X GET "http://malcorp.test/api/account/me"
+
+# GET request to /api/account/signin
+get_signin:
+	curl.exe -X GET "http://malcorp.test/api/account/signin"
+
+# POST request to /api/account/signup
+post_signup:
+	curl.exe -X POST "http://malcorp.test/api/account/signup"
+
+# POST request to /api/account/image
+post_image:
+	curl.exe -X POST "http://malcorp.test/api/account/image" 
+
+# POST request to /api/account/details
+post_details:
+	curl.exe -X POST "http://malcorp.test/api/account/details"
+
+# PUT request to /api/account/details
+put_details:
+	curl.exe -X PUT "http://malcorp.test/api/account/details"
+
+# DELETE request to /api/account/image
+delete_image:
+	curl.exe -X DELETE "http://malcorp.test/api/account/image"
