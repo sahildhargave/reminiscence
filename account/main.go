@@ -38,7 +38,7 @@ func main() {
 	// Shutdown Code from gin
 	go func() {
 		if err := serv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatal("Failed to initialize server: %v\n", err)
+			log.Fatalf("Failed to initialize server: %v\n", err)
 		}
 	}()
 
@@ -59,6 +59,6 @@ func main() {
 
 	log.Println("shutting down server...")
 	if err := serv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown:%v\n", err)
+		log.Fatalf("Server forced to shutdown: %v\n", err)
 	}
 }

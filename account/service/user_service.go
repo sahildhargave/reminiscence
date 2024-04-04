@@ -1,22 +1,24 @@
+// 😎😎😍😍😘🥰
+// useservice acts as a struct for injecting an implementation of userRepository
+// for use in service methods
 package service
 
 import (
 	"context"
+	"log"
+	"memories/model"
+	"memories/model/apperrors"
+	"mime/multipart"
+	"net/url"
+	"path"
 
-	uuid "github.com/jackc/pgx/pgtype/ext/satori-uuid"
+	"github.com/google/uuid"
 )
 
-//😎😎😍😍😘🥰
-// useservice acts as a struct for injecting an implementation of userRepository
-// for use in service methods
-
 type userService struct {
-	UserRepository  model.UserRespository
+	UserRepository  model.UserRepository
 	ImageRepository model.ImageRepository
 }
-
-// USConfig will hold repositories that will eventually be injected into this
-// this service layer
 
 type USConfig struct {
 	UserRepository  model.UserRepository
@@ -28,12 +30,78 @@ func NewUserService(c *USConfig) model.UserService {
 		UserRepository:  c.UserRepository,
 		ImageRepository: c.ImageRepository,
 	}
-
 }
 
-func (s *userService) clearProfileImage(
+func (s *userService) ClearProfileImage(
 	ctx context.Context,
 	uid uuid.UUID,
 ) error {
-	user
+	user, err := s.UserRepository.FindByID(ctx, uid)
+
+	if err != nil {
+		return err
+	}
+
+	if user.ImageURL == "" {
+		return nil
+	}
+
+	objName, err := ObjNameFromURL(user.ImageURL)
+
+	if err != nil {
+		return err
+	}
+
+	err = s.ImageRepository.DeleteProfile(ctx, objName)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.UserRepository.UpdateImage(ctx, uid, "")
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ObjNameFromURL(imageURL string) (string, error) {
+	if imageURL == "" {
+		objID, _ := uuid.NewRandom()
+		return objID.String(), nil
+	}
+
+	urlPath, err := url.Parse(imageURL)
+
+	if err != nil {
+		log.Printf("Failed to parse objectName from imageURL: %v\n", imageURL)
+		return "", apperrors.NewInternal()
+	}
+
+	return path.Base(urlPath.Path), nil
+}
+
+func (s *userService) Get(ctx context.Context, uid uuid.UUID) (*model.User, error) {
+	return nil, nil
+}
+
+func (s *userService) Signup(ctx context.Context, u *model.User) error {
+	return nil
+}
+
+func (s *userService) Signin(ctx context.Context, u *model.User) error {
+	return nil
+}
+
+func (s *userService) UpdateDetails(ctx context.Context, u *model.User) error {
+	return nil
+}
+
+func (s *userService) SetProfileImage(
+	ctx context.Context,
+	uid uuid.UUID,
+	imageFileHeader *multipart.FileHeader,
+) (*model.User, error) {
+	return nil, nil
 }
