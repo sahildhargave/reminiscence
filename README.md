@@ -1,4 +1,21 @@
 
+
+ Application Architecture
+ Go Application With Gin FrameWork
+ Model/Domain
+ User
+ Token
+ Interfaces
+ Errors
+   
+   |
+   |
+   |
+   |= Handler            Parse/validate incoming requests, call services
+   |= Service/Usecase    User ,Token
+   |= Repository/Data    User , Image, Token, Events
+   |= Data Sources       Redis ,Postgres, Cloud Storage PubSub
+
 PS E:\advance\april\memories\account> curl.exe -X POST "http://malcorp.test/api/account/signin"
 {"hello":"it's signin"}
 PS E:\advance\april\memories\account> curl.exe -X POST "http://malcorp.test/api/account/signUP"
