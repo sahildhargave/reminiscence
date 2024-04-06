@@ -1,9 +1,10 @@
 package handler
 
 import (
-	"memories/model"
 	"net/http"
 	"os"
+
+	"github.com/sahildhargave/memories/account/model"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,18 +42,6 @@ func NewHandler(c *Config) {
 	//image
 	//deleteImage
 	//details
-}
-
-//func (h *Handler) Me(c *gin.Context) {
-//	c.JSON(http.StatusOK, gin.H{
-//		"hello": "it's me",
-//	})
-//}
-
-func (h *Handler) Signup(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"hello": "it's signup",
-	})
 }
 
 func (h *Handler) Signin(c *gin.Context) {

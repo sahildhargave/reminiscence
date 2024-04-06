@@ -5,7 +5,7 @@
 # Define targets
 all: get_hello get_signin post_signup post_image post_details put_details delete_image
 
-# GET request to /api/account/me
+# GET request to /api/account/me 
 get_hello:
 	curl.exe -X GET "http://malcorp.test/api/account/me"
 
@@ -32,3 +32,7 @@ put_details:
 # DELETE request to /api/account/image
 delete_image:
 	curl.exe -X DELETE "http://malcorp.test/api/account/image"
+
+#test a particular file
+service_test:
+    go test -v ./service/...

@@ -3,17 +3,19 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"memories/model"
-	"memories/model/apperrors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/sahildhargave/memories/account/model"
+
+	"github.com/sahildhargave/memories/account/model/apperrors"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"memories/model/mocks"
+	"github.com/sahildhargave/memories/account/model/mocks"
 
 	"github.com/gin-gonic/gin"
 )

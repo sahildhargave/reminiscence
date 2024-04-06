@@ -4,10 +4,11 @@ package mocks
 
 import (
 	"context"
-	"memories/model"
+
 	"mime/multipart"
 
 	"github.com/google/uuid"
+	"github.com/sahildhargave/memories/account/model"
 	"github.com/stretchr/testify/mock"
 )
 

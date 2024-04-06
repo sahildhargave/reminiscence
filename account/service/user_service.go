@@ -5,85 +5,84 @@ package service
 
 import (
 	"context"
-	"log"
-	"memories/model"
-	"memories/model/apperrors"
 	"mime/multipart"
-	"net/url"
-	"path"
+
+	"github.com/sahildhargave/memories/account/model"
 
 	"github.com/google/uuid"
 )
 
 type userService struct {
-	UserRepository  model.UserRepository
-	ImageRepository model.ImageRepository
+	UserRepository model.UserRepository
+	//ImageRepository model.ImageRepository
 }
 
 type USConfig struct {
-	UserRepository  model.UserRepository
-	ImageRepository model.ImageRepository
+	UserRepository model.UserRepository
+	//ImageRepository model.ImageRepository
 }
 
 func NewUserService(c *USConfig) model.UserService {
 	return &userService{
-		UserRepository:  c.UserRepository,
-		ImageRepository: c.ImageRepository,
+		UserRepository: c.UserRepository,
+		//ImageRepository: c.ImageRepository,
 	}
 }
 
-func (s *userService) ClearProfileImage(
-	ctx context.Context,
-	uid uuid.UUID,
-) error {
-	user, err := s.UserRepository.FindByID(ctx, uid)
-
-	if err != nil {
-		return err
-	}
-
-	if user.ImageURL == "" {
-		return nil
-	}
-
-	objName, err := ObjNameFromURL(user.ImageURL)
-
-	if err != nil {
-		return err
-	}
-
-	err = s.ImageRepository.DeleteProfile(ctx, objName)
-	if err != nil {
-		return err
-	}
-
-	_, err = s.UserRepository.UpdateImage(ctx, uid, "")
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func ObjNameFromURL(imageURL string) (string, error) {
-	if imageURL == "" {
-		objID, _ := uuid.NewRandom()
-		return objID.String(), nil
-	}
-
-	urlPath, err := url.Parse(imageURL)
-
-	if err != nil {
-		log.Printf("Failed to parse objectName from imageURL: %v\n", imageURL)
-		return "", apperrors.NewInternal()
-	}
-
-	return path.Base(urlPath.Path), nil
-}
+//func (s *userService) ClearProfileImage(
+//	ctx context.Context,
+//	uid uuid.UUID,
+//) error {
+//	user, err := s.UserRepository.FindByID(ctx, uid)
+//
+//	if err != nil {
+//		return err
+//	}
+//
+//	if user.ImageURL == "" {
+//		return nil
+//	}
+//
+//	objName, err := ObjNameFromURL(user.ImageURL)
+//
+//	if err != nil {
+//		return err
+//	}
+//
+//	err = s.ImageRepository.DeleteProfile(ctx, objName)
+//	if err != nil {
+//		return err
+//	}
+//
+//	_, err = s.UserRepository.UpdateImage(ctx, uid, "")
+//
+//	if err != nil {
+//		return err
+//	}
+//
+//	return nil
+//}
+//
+//func ObjNameFromURL(imageURL string) (string, error) {
+//	if imageURL == "" {
+//		objID, _ := uuid.NewRandom()
+//		return objID.String(), nil
+//	}
+//
+//	urlPath, err := url.Parse(imageURL)
+//
+//	if err != nil {
+//		log.Printf("Failed to parse objectName from imageURL: %v\n", imageURL)
+//		return "", apperrors.NewInternal()
+//	}
+//
+//	return path.Base(urlPath.Path), nil
+//}
 
 func (s *userService) Get(ctx context.Context, uid uuid.UUID) (*model.User, error) {
-	return nil, nil
+	u, err := s.UserRepository.FindByID(ctx, uid)
+
+	return u, err
 }
 
 func (s *userService) Signup(ctx context.Context, u *model.User) error {

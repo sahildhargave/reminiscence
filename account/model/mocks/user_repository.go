@@ -2,7 +2,8 @@ package mocks
 
 import (
 	"context"
-	"memories/model"
+
+	"github.com/sahildhargave/memories/account/model"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"

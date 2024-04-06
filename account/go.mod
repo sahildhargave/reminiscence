@@ -1,4 +1,4 @@
-module memories
+module github.com/sahildhargave/memories/account
 
 go 1.22.0
 

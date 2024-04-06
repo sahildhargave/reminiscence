@@ -2,11 +2,12 @@ package handler
 
 import (
 	"log"
-	"memories/model/apperrors"
-	"memories/model"
+
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sahildhargave/memories/account/model"
+	"github.com/sahildhargave/memories/account/model/apperrors"
 )
 
 func (h *Handler) Me(c *gin.Context) {

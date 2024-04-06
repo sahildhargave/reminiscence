@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"log"
-	"memories/handler"
 	"net/http"
 	"os"
+
+	"github.com/sahildhargave/memories/account/handler"
 
 	"os/signal"
 	"syscall"
