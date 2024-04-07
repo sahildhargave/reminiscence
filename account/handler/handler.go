@@ -10,17 +10,20 @@ import (
 )
 
 type Handler struct {
-	UserService model.UserService
+	UserService  model.UserService
+	TokenService model.TokenService
 }
 
 type Config struct {
-	R           *gin.Engine
-	UserService model.UserService
+	R            *gin.Engine
+	UserService  model.UserService
+	TokenService model.TokenService
 }
 
 func NewHandler(c *Config) {
 	h := &Handler{
-		UserService: c.UserService,
+		UserService:  c.UserService,
+		TokenService: c.TokenService,
 	}
 
 	// Create a account
