@@ -17,6 +17,19 @@ services:
     volumes:
       # So that Traefik can listen to the Docker events
       - /var/run/docker.sock:/var/run/docker.sock
+
+  postgres-auth:
+    image : "postgres:alpine"
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+  # Volume for data and initial sql script
+  # Configure initial db for future demo
+    volumes:
+      - "pgdata_auth:/var/lib/postgresql/data"
+      # - ./init:/docker-entrypoint-initdb.d/
+    command: ["postgres", "-c", "log_statement=all"] 
   account:
     build:
       context: ./account
@@ -24,7 +37,7 @@ services:
     image: account
     env_file: .env.dev 
     expose:
-      - "8080"
+      - "8080" 
     labels:
      - "traefik.enable=true"
      - "traefik.http.routers.account.rule=Host(`malcorp.test`) && PathPrefix(`/api/account`)"
@@ -33,5 +46,11 @@ services:
     volumes:
       - ./account:/go/src/app
 
+    depends_on:
+      - postgres-auth
+
     # have to use $$ (double-dollar) so docker does't try to substitute a variable
     command: reflex -r "\.go$$" -s -- sh -c "go run ./"
+
+volumes:
+  pgdata_auth:

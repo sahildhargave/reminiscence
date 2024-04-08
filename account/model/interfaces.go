@@ -18,7 +18,7 @@ type UserService interface {
 type UserRepository interface {
 	FindByID(ctx context.Context, uid uuid.UUID) (*User, error)
 	//FindByEmail(ctx context.Context, email string) (*User, error)
-	//Create(ctx context.Context, u *User) error
+	Create(ctx context.Context, u *User) error
 	//Update(ctx context.Context, u *User) error
 	//UpdateImage(ctx context.Context, uid uuid.UUID, imageURL string) (*User, error)
 }
