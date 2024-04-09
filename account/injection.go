@@ -21,23 +21,26 @@ import (
 // which inject into handler layer
 
 func inject(d *dataSources) (*gin.Engine, error) {
+	log.Println("Injecting data sources")
 
-	log.Println("aianjecting  data  sources")
-
-	// 😎😎 repository layer
+	/*
+	 * repository layer
+	 */
 	userRepository := repository.NewUserRepository(d.DB)
 
-	// 😎😎 service layer
+	/*
+	 * repository layer
+	 */
 	userService := service.NewUserService(&service.USConfig{
 		UserRepository: userRepository,
 	})
 
-	// loading rsa keys
-	privKeyFile := os.Getenv("PRIV_KEY_FILE")
+	// load rsa keys
+	privKeyFile := os.Getenv("PREV_KEY_FILE")
 	priv, err := ioutil.ReadFile(privKeyFile)
 
 	if err != nil {
-		return nil, fmt.Errorf("Could Not Read Private Key Pem File: %w", err)
+		return nil, fmt.Errorf("could not read private key pem file: %w", err)
 	}
 
 	privKey, err := jwt.ParseRSAPrivateKeyFromPEM(priv)
@@ -50,17 +53,16 @@ func inject(d *dataSources) (*gin.Engine, error) {
 	pub, err := ioutil.ReadFile(pubKeyFile)
 
 	if err != nil {
-		return nil, fmt.Errorf("Could Not Read Public Key Pem File: %w", err)
+		return nil, fmt.Errorf("could not read public key pem file: %w", err)
 	}
 
 	pubKey, err := jwt.ParseRSAPublicKeyFromPEM(pub)
 
 	if err != nil {
-		return nil, fmt.Errorf("Could Not Parse Public Key: %w", err)
+		return nil, fmt.Errorf("could not parse public key: %w", err)
 	}
 
-	// load refresh token scret from env variable
-
+	// load refresh token secret from env variable
 	refreshSecret := os.Getenv("REFRESH_SECRET")
 
 	tokenService := service.NewTokenService(&service.TSConfig{
@@ -72,10 +74,6 @@ func inject(d *dataSources) (*gin.Engine, error) {
 	// initialize gin.Engine
 	router := gin.Default()
 
-	// reading in ACCOUNT_API_URL
-
-	//baseURL := os.Getenv("ACCOUNT_API_URL")
-
 	handler.NewHandler(&handler.Config{
 		R:            router,
 		UserService:  userService,
@@ -83,5 +81,4 @@ func inject(d *dataSources) (*gin.Engine, error) {
 	})
 
 	return router, nil
-
 }
