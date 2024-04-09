@@ -200,56 +200,57 @@ func TestSignup(t *testing.T) {
 			Email:    "bob@bob.com",
 			Password: "avalidpassword",
 		}
+
 		mockTokenResp := &model.TokenPair{
 			IDToken:      "idToken",
 			RefreshToken: "refreshToken",
 		}
 
-		// Mock UserService and TokenService
 		mockUserService := new(mocks.MockUserService)
 		mockTokenService := new(mocks.MockTokenService)
 
-		// Configure expected calls and return values for UserService and TokenService
-		mockUserService.On("Signup", mock.AnythingOfType("*gin.Context"), u).Return(nil)
-		mockTokenService.On("NewPairFromUser", mock.AnythingOfType("*gin.Context"), u, "").Return(mockTokenResp, nil)
+		mockUserService.
+			On("Signup", mock.AnythingOfType("*gin.Context"), u).
+			Return(nil)
+		mockTokenService.
+			On("NewPairFromUser", mock.AnythingOfType("*gin.Context"), u, "").
+			Return(mockTokenResp, nil)
 
-		// Create a response recorder to capture HTTP response
+		// a response recorder for getting written http response
 		rr := httptest.NewRecorder()
 
-		// Create a Gin router
+		// don't need a middleware as we don't yet have authorized user
 		router := gin.Default()
 
-		// Inject mocked services into handler
 		NewHandler(&Config{
 			R:            router,
 			UserService:  mockUserService,
 			TokenService: mockTokenService,
 		})
 
-		// Create request body as JSON
+		// create a request body with empty email and password
 		reqBody, err := json.Marshal(gin.H{
 			"email":    u.Email,
 			"password": u.Password,
 		})
 		assert.NoError(t, err)
 
-		// Create HTTP request with the request body
+		// use bytes.NewBuffer to create a reader
 		request, err := http.NewRequest(http.MethodPost, "/signup", bytes.NewBuffer(reqBody))
 		assert.NoError(t, err)
+
 		request.Header.Set("Content-Type", "application/json")
 
-		// Perform HTTP request
 		router.ServeHTTP(rr, request)
 
-		// Validate HTTP response
-		assert.Equal(t, http.StatusCreated, rr.Code, "Expected HTTP status 201")
+		respBody, err := json.Marshal(gin.H{
+			"tokens": mockTokenResp,
+		})
+		assert.NoError(t, err)
 
-		// Validate response body
-		//respBody, err := json.Marshal(gin.H{"tokens": mockTokenResp})
-		//assert.NoError(t, err)
-		//assert.JSONEq(t, string(respBody), rr.Body.String(), "Response body does not match expected")
+		assert.Equal(t, http.StatusCreated, rr.Code)
+		assert.Equal(t, respBody, rr.Body.Bytes())
 
-		// Assert expected method calls on mock services
 		mockUserService.AssertExpectations(t)
 		mockTokenService.AssertExpectations(t)
 	})

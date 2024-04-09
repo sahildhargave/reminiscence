@@ -21,7 +21,7 @@ func (h *Handler) Signup(c *gin.Context) {
 	// json body, { email, password}
 	var req signupReq
 
-	//Bind incoming json to struct and check for validation errors
+	// Bind incoming json to struct and check for validation errors
 	if ok := bindData(c, &req); !ok {
 		return
 	}
@@ -34,7 +34,7 @@ func (h *Handler) Signup(c *gin.Context) {
 	err := h.UserService.Signup(c, u)
 
 	if err != nil {
-		log.Printf("Failed to sign up  user: %v\n", err.Error())
+		log.Printf("Failed to sign up user: %v\n", err.Error())
 		c.JSON(apperrors.Status(err), gin.H{
 			"error": err,
 		})
@@ -48,9 +48,9 @@ func (h *Handler) Signup(c *gin.Context) {
 	if err != nil {
 		log.Printf("Failed to create tokens for user: %v\n", err.Error())
 
-		//may eventually implement rollback logic here
-		// means if we fail to crate tokens after create a user
-		// we make sure to clear/delete the created user in the database
+		//may eventually  rollback logic here
+		// means  fail to crate tokens after create a user
+		//  make sure to clear/delete the created user in the database
 
 		c.JSON(apperrors.Status(err), gin.H{
 			"error": err,
@@ -59,9 +59,6 @@ func (h *Handler) Signup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"token": tokens,
+		"tokens": tokens,
 	})
-	//
-	//
-
 }

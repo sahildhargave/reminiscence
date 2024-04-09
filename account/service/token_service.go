@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"crypto/rsa"
+	"log"
 
 	"github.com/sahildhargave/memories/account/model"
+	"github.com/sahildhargave/memories/account/model/apperrors"
 )
 
 // Token Service used for injection an implementation of tokenRepository
@@ -45,5 +47,24 @@ func NewTokenService(c *TSConfig) model.TokenService {
 func (s *TokenService) NewPairFromUser(ctx context.Context, u *model.User, prevTokenID string) (*model.TokenPair, error) {
 	// Need to use a repository for idToken as it is unrelated to any data source
 	idToken, err := generateIDToken(u, s.PrivKey)
+
+	if err != nil {
+		log.Printf("Error generating idToken for uid: %v.Error: %v\n", u.UID, err.Error())
+		return nil, apperrors.NewInternal()
+	}
+
+	refreshToken, err := generateRefreshToken(u.UID, s.RefreshSecret)
+
+	if err != nil {
+		log.Printf("Error generating refreshToken for uid: %v. Error: %v\n", u.UID, err.Error())
+		return nil, apperrors.NewInternal()
+	}
+
+	// TODO : store refresh tokens by calling TokenRespository methods
+
+	return &model.TokenPair{
+		IDToken:      idToken,
+		RefreshToken: refreshToken.SS,
+	}, nil
 
 }

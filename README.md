@@ -83,3 +83,6 @@ openssl genpkey -algorithm RSA -out rsa_private.pem -pkeyopt rsa_keygen_bits:204
 
 openssl rsa -in rsa_private.pem -pubout -out rsa_public.pem
 ```
+
+#### Migrate Cli
+

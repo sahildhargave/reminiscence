@@ -3,13 +3,14 @@
 # Variables
 PWD := $(shell pwd)
 ACCTPATH := $(PWD)/account
-ENV := test
+MPATH := $(ACCTPATH)/migrations
+PORT := 5432
+ENV := development  # Set your desired environment here
+N := 1  # Default number of migrations to execute up or down
 
 # Phony targets
-.PHONY: all create-keypair test \
-	get_hello get_signin post_signup \
-	post_image post_details put_details \
-	delete_image
+.PHONY: all create-keypair test migrate-create migrate-up migrate-down migrate-force \
+        get_hello get_signin post_signup post_image post_details put_details delete_image
 
 # Default target
 all: create-keypair test
@@ -19,6 +20,26 @@ create-keypair:
 	@echo "Creating an RSA 2048 key pair"
 	openssl genpkey -algorithm RSA -out $(ACCTPATH)/rsa_private_$(ENV).pem -pkeyopt rsa_keygen_bits:2048
 	openssl rsa -in $(ACCTPATH)/rsa_private_$(ENV).pem -pubout -out $(ACCTPATH)/rsa_public_$(ENV).pem
+
+# Target to create migration files
+migrate-create:
+	@echo "-- Creating migration files ---"
+	migrate create -ext sql -dir $(MPATH) -seq -digits 5 $(NAME)
+
+# Target to run migrations up
+migrate-up:
+	@echo "Running database migrations up..."
+	@cd $(ACCTPATH) && migrate -source file://$(MPATH) -database postgres://postgres:password@localhost:$(PORT)/postgres?sslmode=disable up $(N)
+
+# Target to run migrations down
+migrate-down:
+	@echo "Running database migrations down..."
+	@cd $(ACCTPATH) && migrate -source file://$(MPATH) -database postgres://postgres:password@localhost:$(PORT)/postgres?sslmode=disable down $(N)
+
+# Target to force a specific version of migration
+migrate-force:
+	@echo "Forcing a specific version of migration..."
+	@cd $(ACCTPATH) && migrate -source file://$(MPATH) -database postgres://postgres:password@localhost:$(PORT)/postgres?sslmode=disable force $(VERSION)
 
 # Target to run tests
 test:
@@ -38,7 +59,7 @@ post_signup:
 
 # Target for POST request to /api/account/image
 post_image:
-	curl -X POST "http://malcorp.test/api/account/image" 
+	curl -X POST "http://malcorp.test/api/account/image"
 
 # Target for POST request to /api/account/details
 post_details:

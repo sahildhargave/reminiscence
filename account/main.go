@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/sahildhargave/memories/account/handler"
-
 	"os/signal"
 	"syscall"
 	"time"
@@ -18,11 +16,19 @@ import (
 func main() {
 	log.Println("Starting account service...")
 
-	router := gin.Default()
+	// initialize the data source
+	ds, err := initDS()
 
-	handler.NewHandler(&handler.Config{
-		R: router,
-	})
+	if err != nil {
+		log.Fatalf("Unable to initialize the data sources: %v\n", err)
+
+	}
+
+	router, err := inject(ds)
+
+	//handler.NewHandler(&handler.Config{
+	//	R: router,
+	//})
 
 	router.GET("/api/account", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
