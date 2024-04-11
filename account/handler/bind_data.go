@@ -20,6 +20,7 @@ type invalidArgument struct {
 // bindData is helper function , returns false if data is not bound
 
 func bindData(c *gin.Context, req interface{}) bool {
+	
 	if c.ContentType() != "application/json" {
 		msg := fmt.Sprintf("%s only accepts Content-Type applicaiton/json", c.FullPath())
 

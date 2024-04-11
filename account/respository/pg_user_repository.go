@@ -16,19 +16,19 @@ import (
 //PGUserRespository is data.respository implementation
 //of service layer UserRepository
 
-type PGUserRespository struct {
+type pGUserRespository struct {
 	DB *sqlx.DB
 }
 
 // New User Repository is a factory for initializing User Repositories
 func NewUserRepository(db *sqlx.DB) model.UserRepository {
-	return &PGUserRespository{
+	return &pGUserRespository{
 		DB: db,
 	}
 }
 
 // Create implements model.UserRepository.
-func (r *PGUserRespository) Create(ctx context.Context, u *model.User) error {
+func (r *pGUserRespository) Create(ctx context.Context, u *model.User) error {
 
 	query := "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING *"
 
@@ -48,14 +48,14 @@ func (r *PGUserRespository) Create(ctx context.Context, u *model.User) error {
 
 // Find Id feteched user by ID
 
-func (r *PGUserRespository) FindByID(ctx context.Context, uid uuid.UUID) (*model.User, error) {
+func (r *pGUserRespository) FindByID(ctx context.Context, uid uuid.UUID) (*model.User, error) {
 	user := &model.User{}
 
 	query := "SELECT *FROM users WHERE uid=$1"
 
 	// check error as it could be somethings other than not found
 
-	if err := r.DB.Get(user, query, uid); err != nil {
+	if err := r.DB.GetContext(ctx,user, query, uid); err != nil {
 		return user, apperrors.NewNotFound("uid", uid.String())
 
 	}
@@ -67,7 +67,7 @@ func (r *PGUserRespository) FindByID(ctx context.Context, uid uuid.UUID) (*model
 
 // FindByEmail retrives user row by email address
 
-func (r *PGUserRespository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
+func (r *pGUserRespository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	user := &model.User{}
 
 	query := "SELECT * FROM users WHERE email=$1"
@@ -82,7 +82,7 @@ func (r *PGUserRespository) FindByEmail(ctx context.Context, email string) (*mod
 
 // update updates a user's properties
 
-func (r *PGUserRespository) Update(ctx context.Context, u *model.User) error {
+func (r *pGUserRespository) Update(ctx context.Context, u *model.User) error {
 	query := `
 		UPDATE users 
 		SET name=:name, email=:email, website=:website
@@ -108,7 +108,7 @@ func (r *PGUserRespository) Update(ctx context.Context, u *model.User) error {
 // update Image is used to separately update a user's image separate from
 // other account details
 
-func (r *PGUserRespository) updateImage(ctx context.Context, uid uuid.UUID, imageURL string) (*model.User, error) {
+func (r *pGUserRespository) updateImage(ctx context.Context, uid uuid.UUID, imageURL string) (*model.User, error) {
 	query := `
 		UPDATE users 
 		SET image_url=$2

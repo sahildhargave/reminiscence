@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
@@ -65,19 +66,39 @@ func inject(d *dataSources) (*gin.Engine, error) {
 	// load refresh token secret from env variable
 	refreshSecret := os.Getenv("REFRESH_SECRET")
 
+	// LOADING EXPIRATION Lengths from env variable
+	idTokenExp:= os.Getenv("ID_TOKEN_EXP")
+	refreshTokenExp := os.Getenv("REFRESH_TOKEN_EXP")
+
+	idExp, err := strconv.ParseInt(idTokenExp, 0 ,64)
+	if err != nil {
+		return nil, fmt.Errorf("Could Not Parse ID_TOKEN_EXP as int: %m", err)
+	}
+
+	refreshExp, err := strconv.ParseInt(refreshTokenExp,0 ,64)
+	if err != nil {
+		return nil, fmt.Errorf("Could Not Parse REFRESH_TOKEN_EXP as int: %m", err)
+	}
+
+
 	tokenService := service.NewTokenService(&service.TSConfig{
 		PrivKey:       privKey,
 		PubKey:        pubKey,
 		RefreshSecret: refreshSecret,
+		IDExpirationSecs:   idExp,
+		RefreshExpirationSecs : refreshExp,
 	})
 
 	// initialize gin.Engine
 	router := gin.Default()
 
+	baseURL :=os.Getenv("ACCOUNT_API_URL")
+
 	handler.NewHandler(&handler.Config{
 		R:            router,
 		UserService:  userService,
 		TokenService: tokenService,
+		BaseURL :     baseURL,
 	})
 
 	return router, nil

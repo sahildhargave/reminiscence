@@ -19,9 +19,9 @@ type IDTokenCustomClaims struct {
 // generate ID Token an IDToken which is a jwt with mycustomClaims
 // Could call this Generate ID Token String , but the signature makes this fairly clear
 
-func generateIDToken(u *model.User, key *rsa.PrivateKey) (string, error) {
+func generateIDToken(u *model.User, key *rsa.PrivateKey, exp int64) (string, error) {
 	unixTime := time.Now().Unix()
-	tokenExp := unixTime + 60*15 // 15 minutes
+	tokenExp := unixTime + exp
 
 	claims := IDTokenCustomClaims{
 		User: u,
@@ -38,6 +38,7 @@ func generateIDToken(u *model.User, key *rsa.PrivateKey) (string, error) {
 		log.Println("Failed to sign id token string")
 		return "", err
 	}
+
 	return ss, nil
 }
 
@@ -63,13 +64,13 @@ type RefreshTokenCustomClaims struct {
 
 // the refresh TOken stores only the user's ID , A string
 
-func generateRefreshToken(uid uuid.UUID, key string) (*RefreshToken, error) {
+func generateRefreshToken(uid uuid.UUID, key string, exp int64) (*RefreshToken, error) {
 	currentTime := time.Now()
-	tokenExp := currentTime.AddDate(0, 0, 3) //  for 3 days
-	tokenID, err := uuid.NewRandom()         // v4 uuid in the google uuid lib
+	tokenExp := currentTime.Add(time.Duration(exp) * time.Second)
+	tokenID, err := uuid.NewRandom() // v4 uuid in the google uuid lib
 
 	if err != nil {
-		log.Println("Failed to generate refresh Token ID")
+		log.Println("Failed to generate refresh token ID")
 		return nil, err
 	}
 

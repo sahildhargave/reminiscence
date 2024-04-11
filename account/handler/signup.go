@@ -1,4 +1,4 @@
-// 😁😂🤣😎😍😘🥰
+// Package handler provides HTTP request handlers.
 package handler
 
 import (
@@ -15,10 +15,10 @@ type signupReq struct {
 	Password string `json:"password" binding:"required,gte=6,lte=30"`
 }
 
+// Signup handler
 func (h *Handler) Signup(c *gin.Context) {
-	// TODO Define a variable to which we 'll bind incomiing
-
-	// json body, { email, password}
+	// define a variable to which we'll bind incoming
+	// json body, {email, password}
 	var req signupReq
 
 	// Bind incoming json to struct and check for validation errors
@@ -30,8 +30,9 @@ func (h *Handler) Signup(c *gin.Context) {
 		Email:    req.Email,
 		Password: req.Password,
 	}
-
-	err := h.UserService.Signup(c, u)
+    
+	ctx := c.Request.Context()
+	err := h.UserService.Signup(ctx, u)
 
 	if err != nil {
 		log.Printf("Failed to sign up user: %v\n", err.Error())
@@ -41,16 +42,16 @@ func (h *Handler) Signup(c *gin.Context) {
 		return
 	}
 
-	// TODO create token pair as strings
+	// create token pair as strings
 
-	tokens, err := h.TokenService.NewPairFromUser(c, u, "")
+	tokens, err := h.TokenService.NewPairFromUser(ctx, u, "")
 
 	if err != nil {
 		log.Printf("Failed to create tokens for user: %v\n", err.Error())
 
-		//may eventually  rollback logic here
-		// means  fail to crate tokens after create a user
-		//  make sure to clear/delete the created user in the database
+		// may eventually implement rollback logic here
+		// meaning, if we fail to create tokens after creating a user,
+		// we make sure to clear/delete the created user in the database
 
 		c.JSON(apperrors.Status(err), gin.H{
 			"error": err,

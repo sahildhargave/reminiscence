@@ -8,39 +8,33 @@ import (
 	"testing"
 
 	"github.com/sahildhargave/memories/account/model"
-
 	"github.com/sahildhargave/memories/account/model/apperrors"
-
-	"github.com/google/uuid"
+	"github.com/sahildhargave/memories/account/model/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/sahildhargave/memories/account/model/mocks"
-
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 func TestMe(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
 	t.Run("Success", func(t *testing.T) {
 		uid, _ := uuid.NewRandom()
-
 		mockUserResp := &model.User{
 			UID:   uid,
-			Email: "sam@gmail.com",
-			Name:  "Sam Lucifer",
+			Email: "bob@bob.com",
+			Name:  "Bobby Bobson",
 		}
 
 		mockUserService := new(mocks.MockUserService)
-		mockUserService.On("Get", mock.AnythingOfType("*gin.Context"), uid).Return(mockUserResp, nil)
+		mockUserService.On("Get", mock.Anything, uid).Return(mockUserResp, nil)
 
 		rr := httptest.NewRecorder()
-
 		router := gin.Default()
 		router.Use(func(c *gin.Context) {
-			c.Set("user", &model.User{
-				UID: uid,
-			})
+			c.Set("user", &model.User{UID: uid})
 		})
 
 		NewHandler(&Config{
@@ -49,15 +43,11 @@ func TestMe(t *testing.T) {
 		})
 
 		request, err := http.NewRequest(http.MethodGet, "/me", nil)
-
 		assert.NoError(t, err)
 
 		router.ServeHTTP(rr, request)
 
-		respBody, err := json.Marshal(gin.H{
-			"user": mockUserResp,
-		})
-
+		respBody, err := json.Marshal(gin.H{"user": mockUserResp})
 		assert.NoError(t, err)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
@@ -70,7 +60,6 @@ func TestMe(t *testing.T) {
 		mockUserService.On("Get", mock.Anything, mock.Anything).Return(nil, nil)
 
 		rr := httptest.NewRecorder()
-
 		router := gin.Default()
 		NewHandler(&Config{
 			R:           router,
@@ -89,18 +78,12 @@ func TestMe(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		uid, _ := uuid.NewRandom()
 		mockUserService := new(mocks.MockUserService)
-
 		mockUserService.On("Get", mock.Anything, uid).Return(nil, fmt.Errorf("Some error down call chain"))
 
-		// a response recorder for getting written http response
 		rr := httptest.NewRecorder()
-
 		router := gin.Default()
 		router.Use(func(c *gin.Context) {
-			c.Set("user", &model.User{
-				UID: uid,
-			},
-			)
+			c.Set("user", &model.User{UID: uid})
 		})
 
 		NewHandler(&Config{
@@ -115,10 +98,7 @@ func TestMe(t *testing.T) {
 
 		respErr := apperrors.NewNotFound("user", uid.String())
 
-		respBody, err := json.Marshal(gin.H{
-			"error": respErr,
-		})
-
+		respBody, err := json.Marshal(gin.H{"error": respErr})
 		assert.NoError(t, err)
 
 		assert.Equal(t, respErr.Status(), rr.Code)
