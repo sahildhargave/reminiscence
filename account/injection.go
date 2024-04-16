@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"time"
+
 	"strconv"
 
 	"github.com/dgrijalva/jwt-go"
@@ -28,6 +30,7 @@ func inject(d *dataSources) (*gin.Engine, error) {
 	 * repository layer
 	 */
 	userRepository := repository.NewUserRepository(d.DB)
+	tokenRepository := repository.NewTokenRepository(d.RedisClient)
 
 	/*
 	 * repository layer
@@ -67,38 +70,46 @@ func inject(d *dataSources) (*gin.Engine, error) {
 	refreshSecret := os.Getenv("REFRESH_SECRET")
 
 	// LOADING EXPIRATION Lengths from env variable
-	idTokenExp:= os.Getenv("ID_TOKEN_EXP")
+	idTokenExp := os.Getenv("ID_TOKEN_EXP")
 	refreshTokenExp := os.Getenv("REFRESH_TOKEN_EXP")
 
-	idExp, err := strconv.ParseInt(idTokenExp, 0 ,64)
+	idExp, err := strconv.ParseInt(idTokenExp, 0, 64)
 	if err != nil {
 		return nil, fmt.Errorf("Could Not Parse ID_TOKEN_EXP as int: %m", err)
 	}
 
-	refreshExp, err := strconv.ParseInt(refreshTokenExp,0 ,64)
+	refreshExp, err := strconv.ParseInt(refreshTokenExp, 0, 64)
 	if err != nil {
 		return nil, fmt.Errorf("Could Not Parse REFRESH_TOKEN_EXP as int: %m", err)
 	}
 
-
 	tokenService := service.NewTokenService(&service.TSConfig{
-		PrivKey:       privKey,
-		PubKey:        pubKey,
-		RefreshSecret: refreshSecret,
-		IDExpirationSecs:   idExp,
-		RefreshExpirationSecs : refreshExp,
+		TokenRepository:       tokenRepository,
+		PrivKey:               privKey,
+		PubKey:                pubKey,
+		RefreshSecret:         refreshSecret,
+		IDExpirationSecs:      idExp,
+		RefreshExpirationSecs: refreshExp,
 	})
 
 	// initialize gin.Engine
 	router := gin.Default()
 
-	baseURL :=os.Getenv("ACCOUNT_API_URL")
+	baseURL := os.Getenv("ACCOUNT_API_URL")
+
+	// read in HANDLER_TIMEOUT
+	handlerTimeout := os.Getenv("HANDLER_TIMEOUT")
+	ht, err := strconv.ParseInt(handlerTimeout, 0, 64)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse HANDLER_TIMEOUT as int: %w", err)
+	}
 
 	handler.NewHandler(&handler.Config{
-		R:            router,
-		UserService:  userService,
-		TokenService: tokenService,
-		BaseURL :     baseURL,
+		R:               router,
+		UserService:     userService,
+		TokenService:    tokenService,
+		BaseURL:         baseURL,
+		TimeoutDuration: time.Duration(time.Duration(ht) *time.Second),
 	})
 
 	return router, nil

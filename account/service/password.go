@@ -31,7 +31,7 @@ func hashPassword(password string) (string, error) {
 }
 
 // 🤐🤐🤐🤐
-func ComparePasswords(storedPassword string, suppliedPassword string) (bool, error) {
+func comparePasswords(storedPassword string, suppliedPassword string) (bool, error) {
 
 	pwsalt := strings.Split(storedPassword, ".")
 

@@ -10,13 +10,13 @@ type Type string
 
 const (
 	Authorization        Type = "AUTHORIZATION"        // Authentication Failures -
-	BadRequest           Type = "BADREQUEST"           // validation errors / BadInput
+	BadRequest           Type = "BAD_REQUEST"           // validation errors / BadInput
 	Conflict             Type = "CONFLICT"             // Already exists (eg : =create accoujnt with existent email) - 409
 	Internal             Type = "INTERNAL"             // Server (500) and fallback errors
-	NotFound             Type = "NOTFOUND"             // Resource not found
-	PayloadTooLarge      Type = "PAYLOADTOOLARGE"      // for uploading tons of JSON, or an image over the limit - 413
-	ServiceUnavailable   Type = "SERVICEUNAVAILABLE"   // For long running handlers
-	UnsupportedMediaType Type = "UNSUPPORTEDMEDIATYPE" // for http 415
+	NotFound             Type = "NOT_FOUND"             // Resource not found
+	PayloadTooLarge      Type = "PAYLOAD_TOO_LARGE"      // for uploading tons of JSON, or an image over the limit - 413
+	ServiceUnavailable   Type = "SERVICE_UNAVAILABLE"   // For long running handlers
+	UnsupportedMediaType Type = "UNSUPPORTED_MEDIA_TYPE" // for http 415
 )
 
 // 🤣😃😄😅😆😉😊😋😎

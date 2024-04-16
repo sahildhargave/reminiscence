@@ -6,12 +6,11 @@ package service
 import (
 	"context"
 	"log"
-	"mime/multipart"
+
+	"github.com/google/uuid"
 
 	"github.com/sahildhargave/memories/account/model"
 	"github.com/sahildhargave/memories/account/model/apperrors"
-
-	"github.com/google/uuid"
 )
 
 type userService struct {
@@ -30,56 +29,6 @@ func NewUserService(c *USConfig) model.UserService {
 		//ImageRepository: c.ImageRepository,
 	}
 }
-
-//func (s *userService) ClearProfileImage(
-//	ctx context.Context,
-//	uid uuid.UUID,
-//) error {
-//	user, err := s.UserRepository.FindByID(ctx, uid)
-//
-//	if err != nil {
-//		return err
-//	}
-//
-//	if user.ImageURL == "" {
-//		return nil
-//	}
-//
-//	objName, err := ObjNameFromURL(user.ImageURL)
-//
-//	if err != nil {
-//		return err
-//	}
-//
-//	err = s.ImageRepository.DeleteProfile(ctx, objName)
-//	if err != nil {
-//		return err
-//	}
-//
-//	_, err = s.UserRepository.UpdateImage(ctx, uid, "")
-//
-//	if err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-//
-//func ObjNameFromURL(imageURL string) (string, error) {
-//	if imageURL == "" {
-//		objID, _ := uuid.NewRandom()
-//		return objID.String(), nil
-//	}
-//
-//	urlPath, err := url.Parse(imageURL)
-//
-//	if err != nil {
-//		log.Printf("Failed to parse objectName from imageURL: %v\n", imageURL)
-//		return "", apperrors.NewInternal()
-//	}
-//
-//	return path.Base(urlPath.Path), nil
-//}
 
 func (s *userService) Get(ctx context.Context, uid uuid.UUID) (*model.User, error) {
 	u, err := s.UserRepository.FindByID(ctx, uid)
@@ -115,17 +64,34 @@ func (s *userService) Signup(ctx context.Context, u *model.User) error {
 }
 
 func (s *userService) Signin(ctx context.Context, u *model.User) error {
+	uFetched, err := s.UserRepository.FindByEmail(ctx, u.Email)
+
+	// return NotAuthorized to client to omit details of
+	if err != nil {
+		return apperrors.NewAuthorization("Invalid email and password combination")
+	}
+
+	// verifying password
+	match, err := comparePasswords(uFetched.Password, u.Password)
+	if err != nil {
+		return apperrors.NewInternal()
+	}
+
+	if !match {
+		return apperrors.NewAuthorization("Invalid email and password combination")
+
+	}
+
+	*u = *uFetched
 	return nil
 }
 
 func (s *userService) UpdateDetails(ctx context.Context, u *model.User) error {
-	return nil
-}
+	err := s.UserRepository.Update(ctx, u)
 
-func (s *userService) SetProfileImage(
-	ctx context.Context,
-	uid uuid.UUID,
-	imageFileHeader *multipart.FileHeader,
-) (*model.User, error) {
-	return nil, nil
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

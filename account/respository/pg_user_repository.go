@@ -16,25 +16,23 @@ import (
 //PGUserRespository is data.respository implementation
 //of service layer UserRepository
 
-type pGUserRespository struct {
+type pGUserRepository struct {
 	DB *sqlx.DB
 }
 
 // New User Repository is a factory for initializing User Repositories
 func NewUserRepository(db *sqlx.DB) model.UserRepository {
-	return &pGUserRespository{
+	return &pGUserRepository{
 		DB: db,
 	}
 }
 
 // Create implements model.UserRepository.
-func (r *pGUserRespository) Create(ctx context.Context, u *model.User) error {
-
+func (r *pGUserRepository) Create(ctx context.Context, u *model.User) error {
 	query := "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING *"
 
 	if err := r.DB.GetContext(ctx, u, query, u.Email, u.Password); err != nil {
-		//unique constraint
-
+		// check unique constraint
 		if err, ok := err.(*pq.Error); ok && err.Code.Name() == "unique_violation" {
 			log.Printf("Could not create a user with email: %v. Reason: %v\n", u.Email, err.Code.Name())
 			return apperrors.NewConflict("email", u.Email)
@@ -48,26 +46,21 @@ func (r *pGUserRespository) Create(ctx context.Context, u *model.User) error {
 
 // Find Id feteched user by ID
 
-func (r *pGUserRespository) FindByID(ctx context.Context, uid uuid.UUID) (*model.User, error) {
+func (r *pGUserRepository) FindByID(ctx context.Context, uid uuid.UUID) (*model.User, error) {
 	user := &model.User{}
 
-	query := "SELECT *FROM users WHERE uid=$1"
+	query := "SELECT * FROM users WHERE uid=$1"
 
-	// check error as it could be somethings other than not found
-
-	if err := r.DB.GetContext(ctx,user, query, uid); err != nil {
+	// we need to actually check errors as it could be something other than not found
+	if err := r.DB.GetContext(ctx, user, query, uid); err != nil {
 		return user, apperrors.NewNotFound("uid", uid.String())
-
 	}
 
 	return user, nil
 }
 
-//New NewUser
-
-// FindByEmail retrives user row by email address
-
-func (r *pGUserRespository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
+// Find By EMAILID
+func (r *pGUserRepository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	user := &model.User{}
 
 	query := "SELECT * FROM users WHERE email=$1"
@@ -80,15 +73,14 @@ func (r *pGUserRespository) FindByEmail(ctx context.Context, email string) (*mod
 	return user, nil
 }
 
-// update updates a user's properties
-
-func (r *pGUserRespository) Update(ctx context.Context, u *model.User) error {
+// update a user's properties
+func (r *pGUserRepository) Update(ctx context.Context, u *model.User) error {
 	query := `
-		UPDATE users 
+	    UPDATE users
 		SET name=:name, email=:email, website=:website
 		WHERE uid=:uid
 		RETURNING *;
-		`
+	`
 
 	nstmt, err := r.DB.PrepareNamedContext(ctx, query)
 
@@ -103,29 +95,4 @@ func (r *pGUserRespository) Update(ctx context.Context, u *model.User) error {
 	}
 
 	return nil
-}
-
-// update Image is used to separately update a user's image separate from
-// other account details
-
-func (r *pGUserRespository) updateImage(ctx context.Context, uid uuid.UUID, imageURL string) (*model.User, error) {
-	query := `
-		UPDATE users 
-		SET image_url=$2
-		WHERE uid=$1
-		RETURNING *;
-	`
-
-	// instantiated to scan into ref using 'GetContext'
-
-	u := &model.User{}
-
-	err := r.DB.GetContext(ctx, u, query, uid, imageURL)
-
-	if err != nil {
-		log.Printf("Error updating image_url in database: %v\n", err)
-		return nil, apperrors.NewInternal()
-	}
-
-	return u, nil
 }

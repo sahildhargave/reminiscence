@@ -1,4 +1,3 @@
-// Package handler provides HTTP request handlers.
 package handler
 
 import (
@@ -10,18 +9,15 @@ import (
 	"github.com/sahildhargave/memories/account/model/apperrors"
 )
 
-type signupReq struct {
+type signinReq struct {
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,gte=6,lte=30"`
+	Password string `json:"password" binding:"required,min=6,max=30"`
 }
 
-// Signup handler
-func (h *Handler) Signup(c *gin.Context) {
-	// define a variable to which we'll bind incoming
-	// json body, {email, password}
-	var req signupReq
+// signin used to authenticate extant user
+func (h *Handler) Signin(c *gin.Context) {
+	var req signinReq
 
-	// Bind incoming json to struct and check for validation errors
 	if ok := bindData(c, &req); !ok {
 		return
 	}
@@ -32,33 +28,28 @@ func (h *Handler) Signup(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	err := h.UserService.Signup(ctx, u)
+	err := h.UserService.Signin(ctx, u)
 
 	if err != nil {
-		log.Printf("Failed to sign up user: %v\n", err.Error())
+		log.Printf("Failed to sign in user: %v\n", err.Error())
 		c.JSON(apperrors.Status(err), gin.H{
 			"error": err,
 		})
 		return
 	}
 
-	// create token pair as strings
 	tokens, err := h.TokenService.NewPairFromUser(ctx, u, "")
 
 	if err != nil {
 		log.Printf("Failed to create tokens for user: %v\n", err.Error())
 
-		// may eventually implement rollback logic here
-		// meaning, if we fail to create tokens after creating a user,
-		// we make sure to clear/delete the created user in the database
-
 		c.JSON(apperrors.Status(err), gin.H{
 			"error": err,
 		})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
+	c.JSON(http.StatusOK, gin.H{
 		"tokens": tokens,
 	})
 }

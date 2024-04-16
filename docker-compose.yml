@@ -29,7 +29,14 @@ services:
     volumes:
       - "pgdata_account:/var/lib/postgresql/data"
       # - ./init:/docker-entrypoint-initdb.d/
+
     command: ["postgres", "-c", "log_statement=all"] 
+  redis-account:
+    image: "redis:alpine"
+    ports: 
+      - "6379:6379"
+    volumes:
+      - "redisdata:/data"
   account:
     build:
       context: ./account
@@ -42,15 +49,17 @@ services:
      - "traefik.enable=true"
      - "traefik.http.routers.account.rule=Host(`malcorp.test`) && PathPrefix(`/api/account`)"
     environment:
-      - environment=dev
+      - ENV=dev
     volumes:
       - ./account:/go/src/app
 
     depends_on:
       - postgres-account
+      - redis-account
 
     # have to use $$ (double-dollar) so docker does't try to substitute a variable
     command: reflex -r "\.go$$" -s -- sh -c "go run ./"
 
 volumes:
   pgdata_account:
+  redisdata:

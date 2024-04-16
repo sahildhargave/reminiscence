@@ -86,3 +86,10 @@ openssl rsa -in rsa_private.pem -pubout -out rsa_public.pem
 
 #### Migrate Cli
 
+#### Refresh Token Storage  
+//TODO Create idToken and refresh token send toin json response . the refresh will have a "jti" key with a value of {refreshTokenID}
+//TODO Store userID refreshTokenID as a key in Redis with 3 day TTL 
+
+
+
+###### Auth User Middleware
