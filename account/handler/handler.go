@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/sahildhargave/memories/account/handler/middleware"
@@ -14,6 +13,7 @@ import (
 type Handler struct {
 	UserService  model.UserService
 	TokenService model.TokenService
+	MaxBodyBytes int64
 }
 
 type Config struct {
@@ -22,12 +22,14 @@ type Config struct {
 	TokenService    model.TokenService
 	BaseURL         string
 	TimeoutDuration time.Duration
+	MaxBodyBytes    int64
 }
 
 func NewHandler(c *Config) {
 	h := &Handler{
 		UserService:  c.UserService,
 		TokenService: c.TokenService,
+		MaxBodyBytes: c.MaxBodyBytes,
 	}
 
 	// Create a account
@@ -39,10 +41,14 @@ func NewHandler(c *Config) {
 		g.GET("/me", middleware.AuthUser(h.TokenService), h.Me)
 		g.POST("/signout", middleware.AuthUser(h.TokenService), h.Signout)
 		g.PUT("/details", middleware.AuthUser(h.TokenService), h.Details)
+		g.POST("/image", middleware.AuthUser(h.TokenService), h.Image)
+		g.DELETE("/image", middleware.AuthUser(h.TokenService), h.DeleteImage)
 	} else {
 		g.GET("/me", h.Me)
 		g.POST("/signout", h.Signout)
 		g.PUT("/details", h.Details)
+		g.POST("/image", h.Image)
+		g.DELETE("/image", h.DeleteImage)
 
 	}
 
@@ -51,8 +57,8 @@ func NewHandler(c *Config) {
 	g.POST("/signin", h.Signin)
 	//g.POST("/signout", h.Signout)
 	g.POST("/tokens", h.Tokens)
-	g.POST("/image", h.Image)
-	g.DELETE("/image", h.DeleteImage)
+	//g.POST("/image", h.Image)
+	//g.DELETE("/image", h.DeleteImage)
 	//g.PUT("/details", h.Details)
 
 	// signup
@@ -84,17 +90,17 @@ func NewHandler(c *Config) {
 //	})
 //}
 
-func (h *Handler) Image(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"hello": "it's image",
-	})
-}
+//func (h *Handler) Image(c *gin.Context) {
+//	c.JSON(http.StatusOK, gin.H{
+//		"hello": "it's image",
+//	})
+//}
 
-func (h *Handler) DeleteImage(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"hello": "it's Delete Image",
-	})
-}
+//func (h *Handler) DeleteImage(c *gin.Context) {
+//	c.JSON(http.StatusOK, gin.H{
+//		"hello": "it's Delete Image",
+//	})
+//}
 
 //func (h *Handler) Details(c *gin.Context) {
 //	c.JSON(http.StatusOK, gin.H{
