@@ -94,3 +94,1527 @@ func (m *MockUserRepository) UpdateImage(
 
 	return r0, r1
 }
+
+
+
+
+
+
+
+
+package mocks
+
+import (
+	"context"
+	"mime/multipart"
+
+	"github.com/google/uuid"
+	"github.com/jacobsngoodwin/memrizr/account/model"
+	"github.com/stretchr/testify/mock"
+)
+
+// MockUserService is a mock type for model.UserService
+type MockUserService struct {
+	mock.Mock
+}
+
+// ClearProfileImage is a mock of UserService.ClearProfileImage
+func (m *MockUserService) ClearProfileImage(ctx context.Context, uid uuid.UUID) error {
+	ret := m.Called(ctx, uid)
+
+	var r0 error
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).(error)
+	}
+
+	return r0
+}
+
+// Get is mock of UserService Get
+func (m *MockUserService) Get(ctx context.Context, uid uuid.UUID) (*model.User, error) {
+	// args that will be passed to "Return" in the tests, when function
+	// is called with a uid. Hence the name "ret"
+	ret := m.Called(ctx, uid)
+
+	// first value passed to "Return"
+	var r0 *model.User
+	if ret.Get(0) != nil {
+		// we can just return this if we know we won't be passing function to "Return"
+		r0 = ret.Get(0).(*model.User)
+	}
+
+	var r1 error
+
+	if ret.Get(1) != nil {
+		r1 = ret.Get(1).(error)
+	}
+
+	return r0, r1
+}
+
+// Signup is a mock of UserService.Signup
+func (m *MockUserService) Signup(ctx context.Context, u *model.User) error {
+	ret := m.Called(ctx, u)
+
+	var r0 error
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).(error)
+	}
+
+	return r0
+}
+
+// Signin is a mock of UserService.Signin
+func (m *MockUserService) Signin(ctx context.Context, u *model.User) error {
+	ret := m.Called(ctx, u)
+
+	var r0 error
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).(error)
+	}
+
+	return r0
+}
+
+// UpdateDetails is a mock of UserService.UpdateDetails
+func (m *MockUserService) UpdateDetails(ctx context.Context, u *model.User) error {
+	ret := m.Called(ctx, u)
+
+	var r0 error
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).(error)
+	}
+
+	return r0
+}
+
+// SetProfileImage is a mock of UserService.SetProfileImage
+func (m *MockUserService) SetProfileImage(
+	ctx context.Context,
+	uid uuid.UUID,
+	imageFileHeader *multipart.FileHeader,
+) (*model.User, error) {
+	ret := m.Called(ctx, uid, imageFileHeader)
+
+	// first value passed to "Return"
+	var r0 *model.User
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).(*model.User)
+	}
+
+	var r1 error
+
+	if ret.Get(1) != nil {
+		r1 = ret.Get(1).(error)
+	}
+
+	return r0, r1
+}
+
+
+
+package service
+
+import (
+	"context"
+	"log"
+	"mime/multipart"
+	"net/url"
+	"path"
+
+	"github.com/google/uuid"
+	"github.com/jacobsngoodwin/memrizr/account/model"
+	"github.com/jacobsngoodwin/memrizr/account/model/apperrors"
+)
+
+// userService acts as a struct for injecting an implementation of UserRepository
+// for use in service methods
+type userService struct {
+	UserRepository  model.UserRepository
+	ImageRepository model.ImageRepository
+}
+
+// USConfig will hold repositories that will eventually be injected into this
+// this service layer
+type USConfig struct {
+	UserRepository  model.UserRepository
+	ImageRepository model.ImageRepository
+}
+
+// NewUserService is a factory function for
+// initializing a UserService with its repository layer dependencies
+func NewUserService(c *USConfig) model.UserService {
+	return &userService{
+		UserRepository:  c.UserRepository,
+		ImageRepository: c.ImageRepository,
+	}
+}
+
+func (s *userService) ClearProfileImage(
+	ctx context.Context,
+	uid uuid.UUID,
+) error {
+	user, err := s.UserRepository.FindByID(ctx, uid)
+
+	if err != nil {
+		return err
+	}
+
+	if user.ImageURL == "" {
+		return nil
+	}
+
+	objName, err := objNameFromURL(user.ImageURL)
+	if err != nil {
+		return err
+	}
+
+	err = s.ImageRepository.DeleteProfile(ctx, objName)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.UserRepository.UpdateImage(ctx, uid, "")
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Get retrieves a user based on their uuid
+func (s *userService) Get(ctx context.Context, uid uuid.UUID) (*model.User, error) {
+	u, err := s.UserRepository.FindByID(ctx, uid)
+
+	return u, err
+}
+
+// Signup reaches our to a UserRepository to verify the
+// email address is available and signs up the user if this is the case
+func (s *userService) Signup(ctx context.Context, u *model.User) error {
+	pw, err := hashPassword(u.Password)
+
+	if err != nil {
+		log.Printf("Unable to signup user for email: %v\n", u.Email)
+		return apperrors.NewInternal()
+	}
+
+	// now I realize why I originally used Signup(ctx, email, password)
+	// then created a user. It's somewhat un-natural to mutate the user here
+	u.Password = pw
+
+	if err := s.UserRepository.Create(ctx, u); err != nil {
+		return err
+	}
+
+	// If we get around to adding events, we'd Publish it here
+	// err := s.EventsBroker.PublishUserUpdated(u, true)
+
+	// if err != nil {
+	// 	return nil, apperrors.NewInternal()
+	// }
+
+	return nil
+}
+
+// Signin reaches our to a UserRepository check if the user exists
+// and then compares the supplied password with the provided password
+// if a valid email/password combo is provided, u will hold all
+// available user fields
+func (s *userService) Signin(ctx context.Context, u *model.User) error {
+	uFetched, err := s.UserRepository.FindByEmail(ctx, u.Email)
+
+	// Will return NotAuthorized to client to omit details of why
+	if err != nil {
+		return apperrors.NewAuthorization("Invalid email and password combination")
+	}
+
+	// verify password - we previously created this method
+	match, err := comparePasswords(uFetched.Password, u.Password)
+
+	if err != nil {
+		return apperrors.NewInternal()
+	}
+
+	if !match {
+		return apperrors.NewAuthorization("Invalid email and password combination")
+	}
+
+	*u = *uFetched
+	return nil
+}
+
+func (s *userService) UpdateDetails(ctx context.Context, u *model.User) error {
+	// Update user in UserRepository
+	err := s.UserRepository.Update(ctx, u)
+
+	if err != nil {
+		return err
+	}
+
+	// // Publish user updated
+	// err = s.EventsBroker.PublishUserUpdated(u, false)
+	// if err != nil {
+	// 	return apperrors.NewInternal()
+	// }
+
+	return nil
+}
+
+func (s *userService) SetProfileImage(
+	ctx context.Context,
+	uid uuid.UUID,
+	imageFileHeader *multipart.FileHeader,
+) (*model.User, error) {
+	u, err := s.UserRepository.FindByID(ctx, uid)
+
+	if err != nil {
+		return nil, err
+	}
+
+	objName, err := objNameFromURL(u.ImageURL)
+
+	if err != nil {
+		return nil, err
+	}
+
+	imageFile, err := imageFileHeader.Open()
+	if err != nil {
+		log.Printf("Failed to open image file: %v\n", err)
+		return nil, apperrors.NewInternal()
+	}
+
+	// Upload user's image to ImageRepository
+	// Possibly received updated imageURL
+	imageURL, err := s.ImageRepository.UpdateProfile(ctx, objName, imageFile)
+
+	if err != nil {
+		log.Printf("Unable to upload image to cloud provider: %v\n", err)
+		return nil, err
+	}
+
+	updatedUser, err := s.UserRepository.UpdateImage(ctx, u.UID, imageURL)
+
+	if err != nil {
+		log.Printf("Unable to update imageURL: %v\n", err)
+		return nil, err
+	}
+
+	return updatedUser, nil
+}
+
+func objNameFromURL(imageURL string) (string, error) {
+	// if user doesn't have imageURL - create one
+	// otherwise, extract last part of URL to get cloud storage object name
+	if imageURL == "" {
+		objID, _ := uuid.NewRandom()
+		return objID.String(), nil
+	}
+
+	// split off last part of URL, which is the image's storage object ID
+	urlPath, err := url.Parse(imageURL)
+
+	if err != nil {
+		log.Printf("Failed to parse objectName from imageURL: %v\n", imageURL)
+		return "", apperrors.NewInternal()
+	}
+
+	// get "path" of url (everything after domain)
+	// then get "base", the last part
+	return path.Base(urlPath.Path), nil
+}
+
+
+
+
+
+
+
+t.Run("Invalid email", func(t *testing.T) {
+		// We just want this to show that it's not called in this case
+		mockUserService := new(mocks.MockUserService)
+		mockUserService.On("Signup", mock.AnythingOfType("*gin.Context"), mock.AnythingOfType("*model.User")).Return(nil)
+
+		// a response recorder for getting written http response
+		rr := httptest.NewRecorder()
+
+		// don't need a middleware as we don't yet have authorized user
+		router := gin.Default()
+
+		NewHandler(&Config{
+			R:           router,
+			UserService: mockUserService,
+		})
+
+		// create a request body with empty email and password
+		reqBody, err := json.Marshal(gin.H{
+			"email":    "bob@bob",
+			"password": "supersecret1234",
+		})
+		assert.NoError(t, err)
+
+		// use bytes.NewBuffer to create a reader
+		request, err := http.NewRequest(http.MethodPost, "/signup", bytes.NewBuffer(reqBody))
+		assert.NoError(t, err)
+
+		request.Header.Set("Content-Type", "application/json")
+
+		router.ServeHTTP(rr, request)
+
+		assert.Equal(t, 400, rr.Code)
+		mockUserService.AssertNotCalled(t, "Signup")
+	})
+
+	t.Run("Password too short", func(t *testing.T) {
+		// We just want this to show that it's not called in this case
+		mockUserService := new(mocks.MockUserService)
+		mockUserService.On("Signup", mock.AnythingOfType("*gin.Context"), mock.AnythingOfType("*model.User")).Return(nil)
+
+		// a response recorder for getting written http response
+		rr := httptest.NewRecorder()
+
+		// don't need a middleware as we don't yet have authorized user
+		router := gin.Default()
+
+		NewHandler(&Config{
+			R:           router,
+			UserService: mockUserService,
+		})
+
+		// create a request body with empty email and password
+		reqBody, err := json.Marshal(gin.H{
+			"email":    "bob@bob.com",
+			"password": "supe",
+		})
+		assert.NoError(t, err)
+
+		// use bytes.NewBuffer to create a reader
+		request, err := http.NewRequest(http.MethodPost, "/signup", bytes.NewBuffer(reqBody))
+		assert.NoError(t, err)
+
+		request.Header.Set("Content-Type", "application/json")
+
+		router.ServeHTTP(rr, request)
+
+		assert.Equal(t, 400, rr.Code)
+		mockUserService.AssertNotCalled(t, "Signup")
+	})
+	t.Run("Password too long", func(t *testing.T) {
+		// We just want this to show that it's not called in this case
+		mockUserService := new(mocks.MockUserService)
+		mockUserService.On("Signup", mock.AnythingOfType("*gin.Context"), mock.AnythingOfType("*model.User")).Return(nil)
+
+		// a response recorder for getting written http response
+		rr := httptest.NewRecorder()
+
+		// don't need a middleware as we don't yet have authorized user
+		router := gin.Default()
+
+		NewHandler(&Config{
+			R:           router,
+			UserService: mockUserService,
+		})
+
+		// create a request body with empty email and password
+		reqBody, err := json.Marshal(gin.H{
+			"email":    "bob@bob.com",
+			"password": "super12324jhklafsdjhflkjweyruasdljkfhasdldfjkhasdkljhrleqwwjkrhlqwejrhasdflkjhasdf",
+		})
+		assert.NoError(t, err)
+
+		// use bytes.NewBuffer to create a reader
+		request, err := http.NewRequest(http.MethodPost, "/signup", bytes.NewBuffer(reqBody))
+		assert.NoError(t, err)
+
+		request.Header.Set("Content-Type", "application/json")
+
+		router.ServeHTTP(rr, request)
+
+		assert.Equal(t, 400, rr.Code)
+		mockUserService.AssertNotCalled(t, "Signup")
+	})
+
+	t.Run("Error returned from UserService", func(t *testing.T) {
+		u := &model.User{
+			Email:    "bob@bob.com",
+			Password: "avalidpassword",
+		}
+
+		mockUserService := new(mocks.MockUserService)
+		mockUserService.On("Signup", mock.AnythingOfType("*gin.Context"), u).Return(apperrors.NewConflict("User Already Exists", u.Email))
+
+		// a response recorder for getting written http response
+		rr := httptest.NewRecorder()
+
+		// don't need a middleware as we don't yet have authorized user
+		router := gin.Default()
+
+		NewHandler(&Config{
+			R:           router,
+			UserService: mockUserService,
+		})
+
+		// create a request body with empty email and password
+		reqBody, err := json.Marshal(gin.H{
+			"email":    u.Email,
+			"password": u.Password,
+		})
+		assert.NoError(t, err)
+
+		// use bytes.NewBuffer to create a reader
+		request, err := http.NewRequest(http.MethodPost, "/signup", bytes.NewBuffer(reqBody))
+		assert.NoError(t, err)
+
+		request.Header.Set("Content-Type", "application/json")
+
+		router.ServeHTTP(rr, request)
+
+		assert.Equal(t, 409, rr.Code)
+		mockUserService.AssertExpectations(t)
+	})
+
+	t.Run("Successful Token Creation", func(t *testing.T) {
+		u := &model.User{
+			Email:    "bob@bob.com",
+			Password: "avalidpassword",
+		}
+
+		mockTokenResp := &model.TokenPair{
+			IDToken:      "idToken",
+			RefreshToken: "refreshToken",
+		}
+
+		mockUserService := new(mocks.MockUserService)
+		mockTokenService := new(mocks.MockTokenService)
+
+		mockUserService.
+			On("Signup", mock.AnythingOfType("*gin.Context"), u).
+			Return(nil)
+		mockTokenService.
+			On("NewPairFromUser", mock.AnythingOfType("*gin.Context"), u, "").
+			Return(mockTokenResp, nil)
+
+		// a response recorder for getting written http response
+		rr := httptest.NewRecorder()
+
+		// don't need a middleware as we don't yet have authorized user
+		router := gin.Default()
+
+		NewHandler(&Config{
+			R:            router,
+			UserService:  mockUserService,
+			TokenService: mockTokenService,
+		})
+
+		// create a request body with empty email and password
+		reqBody, err := json.Marshal(gin.H{
+			"email":    u.Email,
+			"password": u.Password,
+		})
+		assert.NoError(t, err)
+
+		// use bytes.NewBuffer to create a reader
+		request, err := http.NewRequest(http.MethodPost, "/signup", bytes.NewBuffer(reqBody))
+		assert.NoError(t, err)
+
+		request.Header.Set("Content-Type", "application/json")
+
+		router.ServeHTTP(rr, request)
+
+		respBody, err := json.Marshal(gin.H{
+			"tokens": mockTokenResp,
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, http.StatusCreated, rr.Code)
+		assert.Equal(t, respBody, rr.Body.Bytes())
+
+		mockUserService.AssertExpectations(t)
+		mockTokenService.AssertExpectations(t)
+	})
+
+	t.Run("Failed Token Creation", func(t *testing.T) {
+		u := &model.User{
+			Email:    "bob@bob.com",
+			Password: "avalidpassword",
+		}
+
+		mockErrorResponse := apperrors.NewInternal()
+
+		mockUserService := new(mocks.MockUserService)
+		mockTokenService := new(mocks.MockTokenService)
+
+		mockUserService.
+			On("Signup", mock.AnythingOfType("*gin.Context"), u).
+			Return(nil)
+		mockTokenService.
+			On("NewPairFromUser", mock.AnythingOfType("*gin.Context"), u, "").
+			Return(nil, mockErrorResponse)
+
+		// a response recorder for getting written http response
+		rr := httptest.NewRecorder()
+
+		// don't need a middleware as we don't yet have authorized user
+		router := gin.Default()
+
+		NewHandler(&Config{
+			R:            router,
+			UserService:  mockUserService,
+			TokenService: mockTokenService,
+		})
+
+		// create a request body with empty email and password
+		reqBody, err := json.Marshal(gin.H{
+			"email":    u.Email,
+			"password": u.Password,
+		})
+		assert.NoError(t, err)
+
+		// use bytes.NewBuffer to create a reader
+		request, err := http.NewRequest(http.MethodPost, "/signup", bytes.NewBuffer(reqBody))
+		assert.NoError(t, err)
+
+		request.Header.Set("Content-Type", "application/json")
+
+		router.ServeHTTP(rr, request)
+
+		respBody, err := json.Marshal(gin.H{
+			"error": mockErrorResponse,
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, mockErrorResponse.Status(), rr.Code)
+		assert.Equal(t, respBody, rr.Body.Bytes())
+
+		mockUserService.AssertExpectations(t)
+		mockTokenService.AssertExpectations(t)
+	})
+}
+
+
+
+func (s *TokenService) NewPairFromUser(ctx context.Context, u *model.User, prevTokenID string) (*model.TokenPair, error) {
+	// No need to use a repository for idToken as it is unrelated to any data source
+	idToken, err := generateIDToken(u, s.PrivKey)
+
+	if err != nil {
+		log.Printf("Error generating idToken for uid: %v. Error: %v\n", u.UID, err.Error())
+		return nil, apperrors.NewInternal()
+	}
+
+	refreshToken, err := generateRefreshToken(u.UID, s.RefreshSecret)
+
+	if err != nil {
+		log.Printf("Error generating refreshToken for uid: %v. Error: %v\n", u.UID, err.Error())
+		return nil, apperrors.NewInternal()
+	}
+
+	// TODO: store refresh tokens by calling TokenRepository methods
+
+	return &model.TokenPair{
+		IDToken:      idToken,
+		RefreshToken: refreshToken.SS,
+	}, nil
+}
+
+
+package service
+
+import (
+	"context"
+	"io/ioutil"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/dgrijalva/jwt-go"
+	"github.com/google/uuid"
+	"github.com/jacobsngoodwin/memrizr/account/model"
+)
+
+func TestNewPairFromUser(t *testing.T) {
+	priv, _ := ioutil.ReadFile("../rsa_private_test.pem")
+	privKey, _ := jwt.ParseRSAPrivateKeyFromPEM(priv)
+	pub, _ := ioutil.ReadFile("../rsa_public_test.pem")
+	pubKey, _ := jwt.ParseRSAPublicKeyFromPEM(pub)
+	secret := "anotsorandomtestsecret"
+
+	// instantiate a common token service to be used by all tests
+	tokenService := NewTokenService(&TSConfig{
+		PrivKey:       privKey,
+		PubKey:        pubKey,
+		RefreshSecret: secret,
+	})
+
+	// include password to make sure it is not serialized
+	// since json tag is "-"
+	uid, _ := uuid.NewRandom()
+	u := &model.User{
+		UID:      uid,
+		Email:    "bob@bob.com",
+		Password: "blarghedymcblarghface",
+	}
+
+	t.Run("Returns a token pair with proper values", func(t *testing.T) {
+		ctx := context.TODO()
+		tokenPair, err := tokenService.NewPairFromUser(ctx, u, "")
+		assert.NoError(t, err)
+
+		var s string
+		assert.IsType(t, s, tokenPair.IDToken)
+
+		// decode the Base64URL encoded string
+		// simpler to use jwt library which is already imported
+		idTokenClaims := &IDTokenCustomClaims{}
+
+		_, err = jwt.ParseWithClaims(tokenPair.IDToken, idTokenClaims, func(token *jwt.Token) (interface{}, error) {
+			return pubKey, nil
+		})
+
+		assert.NoError(t, err)
+
+		// assert claims on idToken
+		expectedClaims := []interface{}{
+			u.UID,
+			u.Email,
+			u.Name,
+			u.ImageURL,
+			u.Website,
+		}
+		actualIDClaims := []interface{}{
+			idTokenClaims.User.UID,
+			idTokenClaims.User.Email,
+			idTokenClaims.User.Name,
+			idTokenClaims.User.ImageURL,
+			idTokenClaims.User.Website,
+		}
+
+		assert.ElementsMatch(t, expectedClaims, actualIDClaims)
+		assert.Empty(t, idTokenClaims.User.Password) // password should never be encoded to json
+
+		expiresAt := time.Unix(idTokenClaims.StandardClaims.ExpiresAt, 0)
+		expectedExpiresAt := time.Now().Add(15 * time.Minute)
+		assert.WithinDuration(t, expectedExpiresAt, expiresAt, 5*time.Second)
+
+		refreshTokenClaims := &RefreshTokenCustomClaims{}
+		_, err = jwt.ParseWithClaims(tokenPair.RefreshToken, refreshTokenClaims, func(token *jwt.Token) (interface{}, error) {
+			return []byte(secret), nil
+		})
+
+		assert.IsType(t, s, tokenPair.RefreshToken)
+
+		// assert claims on refresh token
+		assert.NoError(t, err)
+		assert.Equal(t, u.UID, refreshTokenClaims.UID)
+
+		expiresAt = time.Unix(refreshTokenClaims.StandardClaims.ExpiresAt, 0)
+		expectedExpiresAt = time.Now().Add(3 * 24 * time.Hour)
+		assert.WithinDuration(t, expectedExpiresAt, expiresAt, 5*time.Second)
+	})
+}
+
+
+
+func TestNewPairFromUser(t *testing.T) {
+	var idExp int64 = 15 * 60
+	var refreshExp int64 = 3 * 24 * 2600
+	priv, _ := ioutil.ReadFile("../rsa_private_test.pem")
+	privKey, _ := jwt.ParseRSAPrivateKeyFromPEM(priv)
+	pub, _ := ioutil.ReadFile("../rsa_public_test.pem")
+	pubKey, _ := jwt.ParseRSAPublicKeyFromPEM(pub)
+	secret := "anotsorandomtestsecret"
+
+	mockTokenRepository := new(mocks.MockTokenRepository)
+
+	// instantiate a common token service to be used by all tests
+	tokenService := NewTokenService(&TSConfig{
+		TokenRepository:       mockTokenRepository,
+		PrivKey:               privKey,
+		PubKey:                pubKey,
+		RefreshSecret:         secret,
+		IDExpirationSecs:      idExp,
+		RefreshExpirationSecs: refreshExp,
+	})
+
+	// include password to make sure it is not serialized
+	// since json tag is "-"
+	uid, _ := uuid.NewRandom()
+	u := &model.User{
+		UID:      uid,
+		Email:    "bob@bob.com",
+		Password: "blarghedymcblarghface",
+	}
+
+	// Setup mock call responses in setup before t.Run statements
+	uidErrorCase, _ := uuid.NewRandom()
+	uErrorCase := &model.User{
+		UID:      uidErrorCase,
+		Email:    "failure@failure.com",
+		Password: "blarghedymcblarghface",
+	}
+	prevID := "a_previous_tokenID"
+
+	setSuccessArguments := mock.Arguments{
+		mock.AnythingOfType("*context.emptyCtx"),
+		u.UID.String(),
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType("time.Duration"),
+	}
+
+	setErrorArguments := mock.Arguments{
+		mock.AnythingOfType("*context.emptyCtx"),
+		uidErrorCase.String(),
+		mock.AnythingOfType("string"),
+		mock.AnythingOfType("time.Duration"),
+	}
+
+	deleteWithPrevIDArguments := mock.Arguments{
+		mock.AnythingOfType("*context.emptyCtx"),
+		u.UID.String(),
+		prevID,
+	}
+
+	// mock call argument/responses
+	mockTokenRepository.On("SetRefreshToken", setSuccessArguments...).Return(nil)
+	mockTokenRepository.On("SetRefreshToken", setErrorArguments...).Return(fmt.Errorf("Error setting refresh token"))
+	mockTokenRepository.On("DeleteRefreshToken", deleteWithPrevIDArguments...).Return(nil)
+
+	t.Run("Returns a token pair with proper values", func(t *testing.T) {
+		ctx := context.Background()                                    // updated from context.TODO()
+		tokenPair, err := tokenService.NewPairFromUser(ctx, u, prevID) // replaced "" with prevID from setup
+		assert.NoError(t, err)
+
+		// SetRefreshToken should be called with setSuccessArguments
+		mockTokenRepository.AssertCalled(t, "SetRefreshToken", setSuccessArguments...)
+		// DeleteRefreshToken should not be called since prevID is ""
+		mockTokenRepository.AssertCalled(t, "DeleteRefreshToken", deleteWithPrevIDArguments...)
+
+		var s string
+		assert.IsType(t, s, tokenPair.IDToken)
+
+		// decode the Base64URL encoded string
+		// simpler to use jwt library which is already imported
+		idTokenClaims := &IDTokenCustomClaims{}
+
+		_, err = jwt.ParseWithClaims(tokenPair.IDToken, idTokenClaims, func(token *jwt.Token) (interface{}, error) {
+			return pubKey, nil
+		})
+
+		assert.NoError(t, err)
+
+		// assert claims on idToken
+		expectedClaims := []interface{}{
+			u.UID,
+			u.Email,
+			u.Name,
+			u.ImageURL,
+			u.Website,
+		}
+		actualIDClaims := []interface{}{
+			idTokenClaims.User.UID,
+			idTokenClaims.User.Email,
+			idTokenClaims.User.Name,
+			idTokenClaims.User.ImageURL,
+			idTokenClaims.User.Website,
+		}
+
+		assert.ElementsMatch(t, expectedClaims, actualIDClaims)
+		assert.Empty(t, idTokenClaims.User.Password) // password should never be encoded to json
+
+		expiresAt := time.Unix(idTokenClaims.StandardClaims.ExpiresAt, 0)
+		expectedExpiresAt := time.Now().Add(time.Duration(idExp) * time.Second)
+		assert.WithinDuration(t, expectedExpiresAt, expiresAt, 5*time.Second)
+
+		refreshTokenClaims := &RefreshTokenCustomClaims{}
+		_, err = jwt.ParseWithClaims(tokenPair.RefreshToken, refreshTokenClaims, func(token *jwt.Token) (interface{}, error) {
+			return []byte(secret), nil
+		})
+
+		assert.IsType(t, s, tokenPair.RefreshToken)
+
+		// assert claims on refresh token
+		assert.NoError(t, err)
+		assert.Equal(t, u.UID, refreshTokenClaims.UID)
+
+		expiresAt = time.Unix(refreshTokenClaims.StandardClaims.ExpiresAt, 0)
+		expectedExpiresAt = time.Now().Add(time.Duration(refreshExp) * time.Second)
+		assert.WithinDuration(t, expectedExpiresAt, expiresAt, 5*time.Second)
+	})
+
+	t.Run("Error setting refresh token", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := tokenService.NewPairFromUser(ctx, uErrorCase, "")
+		assert.Error(t, err) // should return an error
+
+		// SetRefreshToken should be called with setErrorArguments
+		mockTokenRepository.AssertCalled(t, "SetRefreshToken", setErrorArguments...)
+		// DeleteRefreshToken should not be since SetRefreshToken causes method to return
+		mockTokenRepository.AssertNotCalled(t, "DeleteRefreshToken")
+	})
+
+	t.Run("Empty string provided for prevID", func(t *testing.T) {
+		ctx := context.Background()
+		_, err := tokenService.NewPairFromUser(ctx, u, "")
+		assert.NoError(t, err)
+
+		// SetRefreshToken should be called with setSuccessArguments
+		mockTokenRepository.AssertCalled(t, "SetRefreshToken", setSuccessArguments...)
+		// DeleteRefreshToken should not be called since prevID is ""
+		mockTokenRepository.AssertNotCalled(t, "DeleteRefreshToken")
+	})
+}
+
+
+package middleware
+
+/*
+ * Inspired by Golang's TimeoutHandler: https://golang.org/src/net/http/server.go?s=101514:101582#L3212
+ * and gin-timeout: https://github.com/vearne/gin-timeout
+ */
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jacobsngoodwin/memrizr/account/model/apperrors"
+)
+
+// Timeout wraps the request context with a timeout
+func Timeout(timeout time.Duration, errTimeout *apperrors.Error) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// set Gin's writer as our custom writer
+		tw := &timeoutWriter{ResponseWriter: c.Writer, h: make(http.Header)}
+		c.Writer = tw
+
+		// wrap the request context with a timeout
+		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+		defer cancel()
+
+		// update gin request context
+		c.Request = c.Request.WithContext(ctx)
+
+		finished := make(chan struct{})        // to indicate handler finished
+		panicChan := make(chan interface{}, 1) // used to handle panics if we can't recover
+
+		go func() {
+			defer func() {
+				if p := recover(); p != nil {
+					panicChan <- p
+				}
+			}()
+
+			c.Next() // calls subsequent middleware(s) and handler
+			finished <- struct{}{}
+		}()
+
+		select {
+		case <-panicChan:
+			// if we cannot recover from panic,
+			// send internal server error
+			e := apperrors.NewInternal()
+			tw.ResponseWriter.WriteHeader(e.Status())
+			eResp, _ := json.Marshal(gin.H{
+				"error": e,
+			})
+			tw.ResponseWriter.Write(eResp)
+		case <-finished:
+			// if finished, set headers and write resp
+			tw.mu.Lock()
+			defer tw.mu.Unlock()
+			// map Headers from tw.Header() (written to by gin)
+			// to tw.ResponseWriter for response
+			dst := tw.ResponseWriter.Header()
+			for k, vv := range tw.Header() {
+				dst[k] = vv
+			}
+			tw.ResponseWriter.WriteHeader(tw.code)
+			// tw.wbuf will have been written to already when gin writes to tw.Write()
+			tw.ResponseWriter.Write(tw.wbuf.Bytes())
+		case <-ctx.Done():
+			// timeout has occurred, send errTimeout and write headers
+			tw.mu.Lock()
+			defer tw.mu.Unlock()
+			// ResponseWriter from gin
+			tw.ResponseWriter.Header().Set("Content-Type", "application/json")
+			tw.ResponseWriter.WriteHeader(errTimeout.Status())
+			eResp, _ := json.Marshal(gin.H{
+				"error": errTimeout,
+			})
+			tw.ResponseWriter.Write(eResp)
+			c.Abort()
+			tw.SetTimedOut()
+		}
+	}
+}
+
+// implements http.Writer, but tracks if Writer has timed out
+// or has already written its header to prevent
+// header and body overwrites
+// also locks access to this writer to prevent race conditions
+// holds the gin.ResponseWriter which we'll manually call Write()
+// on in the middleware function to send response
+type timeoutWriter struct {
+	gin.ResponseWriter
+	h    http.Header
+	wbuf bytes.Buffer // The zero value for Buffer is an empty buffer ready to use.
+
+	mu          sync.Mutex
+	timedOut    bool
+	wroteHeader bool
+	code        int
+}
+
+// Writes the response, but first makes sure there
+// hasn't already been a timeout
+// In http.ResponseWriter interface
+func (tw *timeoutWriter) Write(b []byte) (int, error) {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+	if tw.timedOut {
+		return 0, nil
+	}
+
+	return tw.wbuf.Write(b)
+}
+
+// In http.ResponseWriter interface
+func (tw *timeoutWriter) WriteHeader(code int) {
+	checkWriteHeaderCode(code)
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+	// We do not write the header if we've timed out or written the header
+	if tw.timedOut || tw.wroteHeader {
+		return
+	}
+	tw.writeHeader(code)
+}
+
+// set that the header has been written
+func (tw *timeoutWriter) writeHeader(code int) {
+	tw.wroteHeader = true
+	tw.code = code
+}
+
+// Header "relays" the header, h, set in struct
+// In http.ResponseWriter interface
+func (tw *timeoutWriter) Header() http.Header {
+	return tw.h
+}
+
+// SetTimeOut sets timedOut field to true
+func (tw *timeoutWriter) SetTimedOut() {
+	tw.timedOut = true
+}
+
+func checkWriteHeaderCode(code int) {
+	if code < 100 || code > 999 {
+		panic(fmt.Sprintf("invalid WriteHeader code %v", code))
+	}
+}
+
+
+
+package handler
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jacobsngoodwin/memrizr/account/model"
+	"github.com/jacobsngoodwin/memrizr/account/model/apperrors"
+	"github.com/jacobsngoodwin/memrizr/account/model/mocks"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+func TestSignin(t *testing.T) {
+	// Setup
+	gin.SetMode(gin.TestMode)
+
+	// setup mock services, gin engine/router, handler layer
+	mockUserService := new(mocks.MockUserService)
+	mockTokenService := new(mocks.MockTokenService)
+
+	router := gin.Default()
+
+	NewHandler(&Config{
+		R:            router,
+		UserService:  mockUserService,
+		TokenService: mockTokenService,
+	})
+
+	t.Run("Bad request data", func(t *testing.T) {
+		// a response recorder for getting written http response
+		rr := httptest.NewRecorder()
+
+		// create a request body with invalid fields
+		reqBody, err := json.Marshal(gin.H{
+			"email":    "notanemail",
+			"password": "short",
+		})
+		assert.NoError(t, err)
+
+		request, err := http.NewRequest(http.MethodPost, "/signin", bytes.NewBuffer(reqBody))
+		assert.NoError(t, err)
+
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rr, request)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		mockUserService.AssertNotCalled(t, "Signin")
+		mockTokenService.AssertNotCalled(t, "NewTokensFromUser")
+	})
+
+	t.Run("Error Returned from UserService.Signin", func(t *testing.T) {
+		email := "bob@bob.com"
+		password := "pwdoesnotmatch123"
+
+		mockUSArgs := mock.Arguments{
+			mock.AnythingOfType("*context.emptyCtx"),
+			&model.User{Email: email, Password: password},
+		}
+
+		// so we can check for a known status code
+		mockError := apperrors.NewAuthorization("invalid email/password combo")
+
+		mockUserService.On("Signin", mockUSArgs...).Return(mockError)
+
+		// a response recorder for getting written http response
+		rr := httptest.NewRecorder()
+
+		// create a request body with valid fields
+		reqBody, err := json.Marshal(gin.H{
+			"email":    email,
+			"password": password,
+		})
+		assert.NoError(t, err)
+
+		request, err := http.NewRequest(http.MethodPost, "/signin", bytes.NewBuffer(reqBody))
+		assert.NoError(t, err)
+
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rr, request)
+
+		mockUserService.AssertCalled(t, "Signin", mockUSArgs...)
+		mockTokenService.AssertNotCalled(t, "NewTokensFromUser")
+		assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	})
+
+	t.Run("Successful Token Creation", func(t *testing.T) {
+		email := "bob@bob.com"
+		password := "pwworksgreat123"
+
+		mockUSArgs := mock.Arguments{
+			mock.AnythingOfType("*context.emptyCtx"),
+			&model.User{Email: email, Password: password},
+		}
+
+		mockUserService.On("Signin", mockUSArgs...).Return(nil)
+
+		mockTSArgs := mock.Arguments{
+			mock.AnythingOfType("*context.emptyCtx"),
+			&model.User{Email: email, Password: password},
+			"",
+		}
+
+		mockTokenPair := &model.TokenPair{
+			IDToken:      "idToken",
+			RefreshToken: "refreshToken",
+		}
+
+		mockTokenService.On("NewPairFromUser", mockTSArgs...).Return(mockTokenPair, nil)
+
+		// a response recorder for getting written http response
+		rr := httptest.NewRecorder()
+
+		// create a request body with valid fields
+		reqBody, err := json.Marshal(gin.H{
+			"email":    email,
+			"password": password,
+		})
+		assert.NoError(t, err)
+
+		request, err := http.NewRequest(http.MethodPost, "/signin", bytes.NewBuffer(reqBody))
+		assert.NoError(t, err)
+
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rr, request)
+
+		respBody, err := json.Marshal(gin.H{
+			"tokens": mockTokenPair,
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, respBody, rr.Body.Bytes())
+
+		mockUserService.AssertCalled(t, "Signin", mockUSArgs...)
+		mockTokenService.AssertCalled(t, "NewPairFromUser", mockTSArgs...)
+	})
+
+	t.Run("Failed Token Creation", func(t *testing.T) {
+		email := "cannotproducetoken@bob.com"
+		password := "cannotproducetoken"
+
+		mockUSArgs := mock.Arguments{
+			mock.AnythingOfType("*context.emptyCtx"),
+			&model.User{Email: email, Password: password},
+		}
+
+		mockUserService.On("Signin", mockUSArgs...).Return(nil)
+
+		mockTSArgs := mock.Arguments{
+			mock.AnythingOfType("*context.emptyCtx"),
+			&model.User{Email: email, Password: password},
+			"",
+		}
+
+		mockError := apperrors.NewInternal()
+		mockTokenService.On("NewPairFromUser", mockTSArgs...).Return(nil, mockError)
+		// a response recorder for getting written http response
+		rr := httptest.NewRecorder()
+
+		// create a request body with valid fields
+		reqBody, err := json.Marshal(gin.H{
+			"email":    email,
+			"password": password,
+		})
+		assert.NoError(t, err)
+
+		request, err := http.NewRequest(http.MethodPost, "/signin", bytes.NewBuffer(reqBody))
+		assert.NoError(t, err)
+
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rr, request)
+
+		respBody, err := json.Marshal(gin.H{
+			"error": mockError,
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, mockError.Status(), rr.Code)
+		assert.Equal(t, respBody, rr.Body.Bytes())
+
+		mockUserService.AssertCalled(t, "Signin", mockUSArgs...)
+		mockTokenService.AssertCalled(t, "NewPairFromUser", mockTSArgs...)
+	})
+}
+
+
+
+package handler
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/jacobsngoodwin/memrizr/account/model"
+	"github.com/jacobsngoodwin/memrizr/account/model/apperrors"
+	"github.com/jacobsngoodwin/memrizr/account/model/mocks"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+func TestDetails(t *testing.T) {
+	// Setup
+	gin.SetMode(gin.TestMode)
+
+	uid, _ := uuid.NewRandom()
+	ctxUser := &model.User{
+		UID: uid,
+	}
+
+	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", ctxUser)
+	})
+
+	mockUserService := new(mocks.MockUserService)
+
+	NewHandler(&Config{
+		R:           router,
+		UserService: mockUserService,
+	})
+
+	t.Run("Data binding error", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+
+		reqBody, _ := json.Marshal(gin.H{
+			"email": "notanemail",
+		})
+		request, _ := http.NewRequest(http.MethodPut, "/details", bytes.NewBuffer(reqBody))
+		request.Header.Set("Content-Type", "application/json")
+
+		router.ServeHTTP(rr, request)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		mockUserService.AssertNotCalled(t, "UpdateDetails")
+	})
+
+	t.Run("Update success", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+
+		newName := "Jacob"
+		newEmail := "jacob@jacob.com"
+		newWebsite := "https://jacobgoodwin.me"
+
+		reqBody, _ := json.Marshal(gin.H{
+			"name":    newName,
+			"email":   newEmail,
+			"website": newWebsite,
+		})
+
+		request, _ := http.NewRequest(http.MethodPut, "/details", bytes.NewBuffer(reqBody))
+		request.Header.Set("Content-Type", "application/json")
+
+		userToUpdate := &model.User{
+			UID:     ctxUser.UID,
+			Name:    newName,
+			Email:   newEmail,
+			Website: newWebsite,
+		}
+
+		updateArgs := mock.Arguments{
+			mock.AnythingOfType("*context.emptyCtx"),
+			userToUpdate,
+		}
+
+		dbImageURL := "https://jacobgoodwin.me/static/696292a38f493a4283d1a308e4a11732/84d81/Profile.jpg"
+
+		mockUserService.
+			On("UpdateDetails", updateArgs...).
+			Run(func(args mock.Arguments) {
+				userArg := args.Get(1).(*model.User) // arg 0 is context, arg 1 is *User
+				userArg.ImageURL = dbImageURL
+			}).
+			Return(nil)
+
+		router.ServeHTTP(rr, request)
+
+		userToUpdate.ImageURL = dbImageURL
+		respBody, _ := json.Marshal(gin.H{
+			"user": userToUpdate,
+		})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, respBody, rr.Body.Bytes())
+		mockUserService.AssertCalled(t, "UpdateDetails", updateArgs...)
+	})
+
+	t.Run("Update failure", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+
+		newName := "Jacob"
+		newEmail := "jacob@jacob.com"
+		newWebsite := "https://jacobgoodwin.me"
+
+		reqBody, _ := json.Marshal(gin.H{
+			"name":    newName,
+			"email":   newEmail,
+			"website": newWebsite,
+		})
+
+		request, _ := http.NewRequest(http.MethodPut, "/details", bytes.NewBuffer(reqBody))
+		request.Header.Set("Content-Type", "application/json")
+
+		userToUpdate := &model.User{
+			UID:     ctxUser.UID,
+			Name:    newName,
+			Email:   newEmail,
+			Website: newWebsite,
+		}
+
+		updateArgs := mock.Arguments{
+			mock.AnythingOfType("*context.emptyCtx"),
+			userToUpdate,
+		}
+
+		mockError := apperrors.NewInternal()
+
+		mockUserService.
+			On("UpdateDetails", updateArgs...).
+			Return(mockError)
+
+		router.ServeHTTP(rr, request)
+
+		respBody, _ := json.Marshal(gin.H{
+			"error": mockError,
+		})
+
+		assert.Equal(t, mockError.Status(), rr.Code)
+		assert.Equal(t, respBody, rr.Body.Bytes())
+		mockUserService.AssertCalled(t, "UpdateDetails", updateArgs...)
+	})
+}
+
+
+
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/jacobsngoodwin/memrizr/account/model"
+	"github.com/jacobsngoodwin/memrizr/account/model/apperrors"
+	"github.com/jacobsngoodwin/memrizr/account/model/fixture"
+	"github.com/jacobsngoodwin/memrizr/account/model/mocks"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+)
+
+func TestImage(t *testing.T) {
+	// Setup
+	gin.SetMode(gin.TestMode)
+
+	uid, _ := uuid.NewRandom()
+	ctxUser := model.User{
+		UID: uid,
+	}
+
+	router := gin.Default()
+	router.Use(func(c *gin.Context) {
+		c.Set("user", &ctxUser)
+	})
+
+	mockUserService := new(mocks.MockUserService)
+
+	NewHandler(&Config{
+		R:            router,
+		UserService:  mockUserService,
+		MaxBodyBytes: 4 * 1024 * 1024,
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+
+		imageURL := "https://www.imageURL.com/1234"
+
+		multipartImageFixture := fixture.NewMultipartImage("image.png", "image/png")
+		defer multipartImageFixture.Close()
+
+		setProfileImageArgs := mock.Arguments{
+			mock.AnythingOfType("*context.emptyCtx"),
+			ctxUser.UID,
+			mock.AnythingOfType("*multipart.FileHeader"),
+		}
+
+		updatedUser := ctxUser
+		updatedUser.ImageURL = imageURL
+
+		mockUserService.On("SetProfileImage", setProfileImageArgs...).Return(&updatedUser, nil)
+
+		request, _ := http.NewRequest(http.MethodPost, "/image", multipartImageFixture.MultipartBody)
+		request.Header.Set("Content-Type", multipartImageFixture.ContentType)
+
+		router.ServeHTTP(rr, request)
+
+		respBody, _ := json.Marshal(gin.H{
+			"imageUrl": imageURL,
+			"message":  "success",
+		})
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, respBody, rr.Body.Bytes())
+
+		mockUserService.AssertCalled(t, "SetProfileImage", setProfileImageArgs...)
+	})
+
+	t.Run("Disallowed mimetype", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+
+		multipartImageFixture := fixture.NewMultipartImage("image.txt", "mage/svg+xml")
+		defer multipartImageFixture.Close()
+
+		request, _ := http.NewRequest(http.MethodPost, "/image", multipartImageFixture.MultipartBody)
+		request.Header.Set("Content-Type", "multipart/form-data")
+
+		router.ServeHTTP(rr, request)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+		mockUserService.AssertNotCalled(t, "SetProfileImage")
+	})
+
+	t.Run("No image file provided", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+
+		request, _ := http.NewRequest(http.MethodPost, "/image", nil)
+		request.Header.Set("Content-Type", "multipart/form-data")
+
+		router.ServeHTTP(rr, request)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+		mockUserService.AssertNotCalled(t, "SetProfileImage")
+	})
+
+	t.Run("Error from SetProfileImage", func(t *testing.T) {
+		// create unique context user for this test
+		uid, _ := uuid.NewRandom()
+		ctxUser := model.User{
+			UID: uid,
+		}
+
+		router := gin.Default()
+		router.Use(func(c *gin.Context) {
+			c.Set("user", &ctxUser)
+		})
+
+		mockUserService := new(mocks.MockUserService)
+
+		NewHandler(&Config{
+			R:            router,
+			UserService:  mockUserService,
+			MaxBodyBytes: 4 * 1024 * 1024,
+		})
+
+		rr := httptest.NewRecorder()
+
+		multipartImageFixture := fixture.NewMultipartImage("image.png", "image/png")
+		defer multipartImageFixture.Close()
+
+		setProfileImageArgs := mock.Arguments{
+			mock.AnythingOfType("*context.emptyCtx"),
+			ctxUser.UID,
+			mock.AnythingOfType("*multipart.FileHeader"),
+		}
+
+		mockError := apperrors.NewInternal()
+
+		mockUserService.On("SetProfileImage", setProfileImageArgs...).Return(nil, mockError)
+
+		request, _ := http.NewRequest(http.MethodPost, "/image", multipartImageFixture.MultipartBody)
+		request.Header.Set("Content-Type", multipartImageFixture.ContentType)
+
+		router.ServeHTTP(rr, request)
+
+		assert.Equal(t, apperrors.Status(mockError), rr.Code)
+
+		mockUserService.AssertCalled(t, "SetProfileImage", setProfileImageArgs...)
+	})
+
+	// TODO - how to handle large files? Creating large files is very slow
+	// maybe create a byte slice and dupe Go into thinking it's an image...?
+}

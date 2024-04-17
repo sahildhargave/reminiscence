@@ -2,15 +2,16 @@ package handler
 
 import (
 	"log"
-	"memories/model/apperrors"
-	"memories/model"
+
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sahildhargave/memories/account/model"
+	"github.com/sahildhargave/memories/account/model/apperrors"
 )
 
 func (h *Handler) Me(c *gin.Context) {
-
+	// A *model.User will eventually be added to context in middleware
 	user, exists := c.Get("user")
 
 	if !exists {
@@ -19,12 +20,15 @@ func (h *Handler) Me(c *gin.Context) {
 		c.JSON(err.Status(), gin.H{
 			"error": err,
 		})
+
 		return
 	}
 
 	uid := user.(*model.User).UID
 
-	u, err := h.UserService.Get(c, uid)
+	// gin.Context satisfies go's context.Context interface
+	ctx := c.Request.Context()
+	u, err := h.UserService.Get(ctx, uid)
 
 	if err != nil {
 		log.Printf("Unable to find user: %v\n%v", uid, err)
@@ -39,5 +43,4 @@ func (h *Handler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"user": u,
 	})
-
 }

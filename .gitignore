@@ -1,1 +1,6 @@
 .env.dev
+*.pem
+account/go-packages-420513-58950c6c4266.json
+
+# Elastic Beanstalk Files
+.elasticbenviro
